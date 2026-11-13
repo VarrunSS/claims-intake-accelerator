@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces the run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      # Warnings are errors (Directory.Build.props), so a clean build is part of the check.
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test -c Release --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory ./TestResults
+          --logger "trx;LogFileName=test-results.trx"
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "### Line coverage by test project"
+            for f in $(find TestResults -name 'coverage.cobertura.xml' | sort); do
+              rate=$(grep -o -m1 'line-rate="[0-9.]*"' "$f" | cut -d'"' -f2)
+              echo "- $(awk -v r="$rate" 'BEGIN { printf "%.1f%%", r * 100 }') ($f)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: warn
+
+  # Milestone 4 adds the evaluation job. It scores the extraction agent against the synthetic claims in
+  # evals/ and fails the build below the thresholds in docs/01-success-metrics.md. It is commented out
+  # because there is no agent to evaluate yet. Like the FHIR MCP evals, it will skip itself on pull
+  # requests from forks, which never receive repository secrets.
+  #
+  # evals:
+  #   needs: build-test
+  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   permissions:
+  #     id-token: write   # sign in to Azure with OIDC; no stored secret
+  #     contents: read
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #     - run: pip install -r evals/requirements.txt
+  #     - uses: azure/login@v2
+  #       with:
+  #         client-id: ${{ vars.AZURE_CLIENT_ID }}
+  #         tenant-id: ${{ vars.AZURE_TENANT_ID }}
+  #         subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  #     - name: Run evals
+  #       run: python -m evals.run --out eval-results.json --fail-below evals/thresholds.json
+  #     - uses: actions/upload-artifact@v4
+  #       if: always()
+  #       with:
+  #         name: eval-results
+  #         path: eval-results.json

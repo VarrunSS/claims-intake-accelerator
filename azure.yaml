@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+#
+# Not yet deployed: see "Project status" in README.md.
+name: claims-intake-accelerator
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# The azd service names must match the "azd-service-name" tags set in infra/modules.
+services:
+  api:
+    project: ./src/ClaimsIntake.Api
+    language: csharp
+    host: appservice
+
+  legacy:
+    project: ./src/ClaimsIntake.Legacy
+    language: csharp
+    host: appservice
+
+  functions:
+    project: ./src/ClaimsIntake.Functions
+    language: csharp
+    host: function
