@@ -28,10 +28,10 @@ things had to be settled.
   reuses the extractor, assessor, policy search and quality gate, so there is no second implementation to drift. The
   alternative, a Python harness calling the pipeline over HTTP, would add a hop, a serialisation layer and a second place
   for logic to live, in return for the Azure AI Evaluation SDK, which Milestone 5 can still use for model-graded metrics.
-- **Dataset.** 51 synthetic claims with ground truth, generated deterministically (fixed seed, a random stream per case)
+- **Dataset.** 51 synthetic claims at Milestone 4 (58 now: Milestone 6a added seven prompt-injection cases) with ground truth, generated deterministically (fixed seed, a random stream per case)
   from a specification. The expected values come from the specification and the wordings, never from running the
   pipeline, so a pipeline error is visible as an error. Each case is tagged with its difficulties so weaknesses show.
-- **Split.** 15 `dev` cases to look at and improve against, 36 `test` cases held out. The test report lists no per-case
+- **Split.** 15 `dev` cases to look at and improve against, 36 `test` cases held out at Milestone 4 (18 and 40 now, after the injection cases). The test report lists no per-case
   misses. Improvements are made against dev only.
 - **Metrics.** Strict field-level precision, recall and F1 with explicit normalisation; issue and finding precision and
   recall; route accuracy and a confusion matrix; citation groundedness; the auto-routable rate and the silent error rate;

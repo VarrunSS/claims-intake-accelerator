@@ -245,8 +245,8 @@ Real runs: [docs/runbook-model-comparison.md](../docs/runbook-model-comparison.m
 - **Synthetic data, one author.** The same person wrote the dataset, the generator, the heuristic extractor and the
   wordings. The documents are messy in the ways that author thought of, and the extractor's patterns were written by
   someone who had seen similar text. This is a known bias and it flatters the numbers. Real claims will score lower.
-- **Small groups.** 36 test cases. One case is nearly 3 points of route accuracy and 7 points of the silent-error rate
-  (14 unflagged claims). Per-tag rows with one or two cases are anecdotes, not rates.
+- **Small groups.** 40 test cases. One case is 2.5 points of route accuracy and about 6 points of the silent-error rate
+  (17 unflagged claims). Per-tag rows with one or two cases are anecdotes, not rates.
 - **Overlapping dev and test.** The split is by hand, and test cases share templates with dev ones. Improvements to
   patterns that dev motivated may help the test split for the wrong reason.
 - **Rules assessor.** Ground truth for findings assumes the wordings say what the generator's tables say. The rules

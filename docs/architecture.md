@@ -9,8 +9,9 @@ Milestone 3 added the policy wording search, the agent tools, the coverage asses
 ([ADR 0006](adr/0006-policy-wording-rag.md)).
 Milestone 5 added a model comparison and prompt versioning harness around the same extractor and assessor
 ([ADR 0008](adr/0008-model-selection-and-tuning.md)); it is an evaluation tool, not a runtime component, and has never been run
-against a real model. Parts that are not built yet carry the milestone that adds them in their label. The table below the diagram
-gives the status of each component, and the section after it shows how the two modes differ.
+against a real model. Milestone 6 added Entra ID authentication, separate identities per component, the decision audit and
+Azure Monitor telemetry ([ADR 0009](adr/0009-identity-roles-and-segregation-of-duties.md), [security posture](security-posture.md)).
+The table below the diagram gives the status of each component, and the section after it shows how the two modes differ.
 
 ## Flow
 
@@ -51,8 +52,8 @@ flowchart LR
     subgraph Legacy["Legacy claims system (mock)"]
         direction TB
         LAPI["Minimal API<br/>GET /policies, POST /claims"]
-        SQL[("Azure SQL<br/>(M3)")]
-        LAPI --- SQL
+        MEM[("In-memory store<br/>(no database)")]
+        LAPI --- MEM
     end
 
     Fn -- "claims-for-review queue (traceparent)" --> API
@@ -100,7 +101,7 @@ legacy system.
 | Review API | `src/ClaimsIntake.Api` | Built, with an in-memory store: list, get, approve (writes to legacy), reject, audit trail (tool calls and decisions), claim history for the duplicate check, intake route and Service Bus consumer, health checks, OpenTelemetry. Since M6a every route needs an Entra ID token with an app role; see [ADR 0009](adr/0009-identity-roles-and-segregation-of-duties.md) and the [threat model](threat-model.md). |
 | Review UI | `ui/` | Built (M2, M3). Angular 21: claim list, claim detail with source text beside fields, coverage findings with expandable cited clauses, route and audit trail, approve or reject. |
 | Mock legacy system | `src/ClaimsIntake.Legacy` | Built, in memory: `GET /policies/{number}` (with the wording id), `GET /claims?policyNumber=`, `POST /claims` with an idempotency key. |
-| Infrastructure | `infra/`, `azure.yaml` | Written, not deployed or validated. M3 adds an Azure AI Search resource (free tier by default, `basic` is about 70 pounds a month), the Search Index Data Reader role, an audit table and app settings. Document Intelligence and Foundry resources are not in it yet. |
+| Infrastructure | `infra/`, `azure.yaml` | Compiled and linted, never deployed. M3 added an Azure AI Search resource (free tier by default, `basic` is about 70 pounds a month), the Search Index Data Reader role, an audit table and app settings. A Foundry account is optional (off by default). Document Intelligence is not in it. |
 
 ## Two modes, one pipeline
 
@@ -162,7 +163,10 @@ from the document id so a repeat is recognised.
 
 ## Deployment (not yet exercised)
 
-`azd up` provisions a resource group with: a user-assigned managed identity, Log Analytics and Application
-Insights, two storage accounts (inbox, and Function host), Service Bus with two queues, Key Vault, a Flex
-Consumption Function App, an App Service plan with the API and the legacy mock, and (Milestone 3) an Azure AI Search
-service and an audit table on the host storage account. The Bicep has not been validated or deployed. See the README.
+`azd up` is meant to provision, in UK South: three user-assigned managed identities (Function, API, legacy mock), Log Analytics and
+Application Insights, three storage accounts (inbox, Function host, audit), Service Bus with one queue (`claims-for-review`), Key Vault,
+an Azure AI Search service, a Flex Consumption Function App, an App Service plan with the API and the legacy mock, alerts and a workbook.
+An Azure AI Foundry account is optional (`deployFoundry`, off by default). Document Intelligence is not in the template. By default the
+deployed Function still uses the local PDF reader, the heuristic extractor and the rules assessor. The first deployment is not a single
+command: it needs two Entra app registrations first and two provisioning passes ([runbook](runbook-deploy.md)). The Bicep compiles and
+lints; it has never been validated against Azure or deployed. See the [README](../README.md).

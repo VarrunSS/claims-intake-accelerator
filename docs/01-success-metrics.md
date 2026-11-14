@@ -3,7 +3,7 @@
 > **Thames Mutual Insurance is a fictional customer.** Baselines are illustrative figures from the
 > fictional week-1 sample described in [00-discovery.md](00-discovery.md). Targets are proposals to agree with
 > the customer, not results. Measured numbers appear only in the "Measured locally" tables (section 1 and section 4), and they
-> come from the Milestone 4 evaluation of the **local** pipeline (heuristic extractor, rules assessor) on 36 synthetic test
+> come from the Milestone 4 evaluation of the **local** pipeline (heuristic extractor, rules assessor) on 40 synthetic test
 > claims. No real model, real claim or running system has been measured.
 
 Status: proposed, for agreement with the head of claims in week 2.
@@ -20,25 +20,25 @@ English, up to 10 pages.
 | # | Metric | Baseline | Target at end of pilot | How it is measured |
 |---|---|---|---|---|
 | M1 | **Handler time per claim**: time from a handler opening the claim to a decision (approve or reject), median | 14 min (30-claim time-and-motion study) | 5 min or less | **Baseline:** observation with a stopwatch on the same 30 claims, repeated at 100 claims at the start of the pilot. **Pilot:** the API records when a handler opens a claim and when they decide. Median and 90th percentile reported weekly. Claims left open overnight are capped at the working day so a break does not inflate the figure. |
-| M2 | **Field-level extraction accuracy**, on the critical fields (policy number, loss date, claimant, loss description, estimated amount) | Not applicable (people key them). A QA sample of keyed claims shows about 4% of fields needing later correction. | At least 95% of critical fields correct overall. At least 98% for policy number and loss date. | **Before go-live:** the evaluation set (50 synthetic claims in Milestone 4, then 100 anonymised real ones when available) scored by exact match after normalisation (dates to ISO 8601, amounts to pence, policy numbers upper-cased). Reported as precision, recall and F1 per field. **In pilot:** the difference between the extracted value and the value the handler approved, per field. |
+| M2 | **Field-level extraction accuracy**, on the critical fields (policy number, loss date, claimant, loss description, estimated amount) | Not applicable (people key them). A QA sample of keyed claims shows about 4% of fields needing later correction. | At least 95% of critical fields correct overall. At least 98% for policy number and loss date. | **Before go-live:** the evaluation set (58 synthetic claims, then 100 anonymised real ones when available) scored by exact match after normalisation (dates to ISO 8601, amounts to pence, policy numbers upper-cased). Reported as precision, recall and F1 per field. **In pilot:** the difference between the extracted value and the value the handler approved, per field. |
 | M3 | **Share of claims needing no data repair**: claims that pass every data-quality rule with no error, so a handler only has to check and approve | 0% (every claim is read and keyed by hand) | At least 60% | Count of claims whose validation result has no errors, divided by all claims received. The rules are in `ClaimsIntake.Domain` (`ClaimValidator`). Reported with the breakdown of errors by code (missing policy number, date in future, date outside policy period). The other claims are not failures: they are the ones the system correctly refuses to pass without a person. |
 | M4 | **Cost per claim**: platform running cost plus handler time | About £11.20 (14 min at a loaded handler cost of £48 an hour, which is £0.80 a minute) | £5.00 or less in total, of which platform cost is £0.60 or less | **Platform:** Azure Cost Management for the resource group, plus token and page counts from telemetry, divided by claims processed in the period. **Handler time:** M1 multiplied by the same loaded rate. The loaded rate comes from the customer's finance team. |
 | M5 | **End-to-end latency, p95**: from the document landing in the inbox to the claim showing in the review queue | No equivalent. Median wait for a handler to open an email is about one working day. | 90 seconds or less for documents of up to 10 pages | Time between the blob-created event and the claim being saved for review, taken from OpenTelemetry traces in Application Insights. Reported as p50, p95 and p99 for each document size band. |
 
 ### Measured locally (Milestone 4)
 
-Source: `evals/results/baseline/report.md`, test split, 36 synthetic claims, committed baseline. Synthetic data written by the
+Source: `evals/results/baseline/report.md`, test split, 40 synthetic claims, committed baseline. Synthetic data written by the
 same author as the extractor, so these numbers flatter it; see [evals/README.md](../evals/README.md). Re-measure on real claims.
 
 | # | Metric | Target | Measured locally | Reading |
 |---|---|---|---|---|
-| M2 | Field F1, overall | 0.95 | 0.968 (six fields, micro) | Meets the target on synthetic data. Cause of loss is weakest (0.889). |
-| M2 | Policy number F1, loss date F1 | 0.98 | 0.982, 0.982 | Meets the pilot target of 98%. |
-| M3 | Claims needing no data repair (no blocking validation error) | 60% or more | 66.7% (truth 69.4%) | Meets the target, on a set built to contain about 31% of claims that should be refused. |
-| M3 | Auto-routable (no blocking issue and route StraightToHandler) | n/a | 41.7% (truth 50.0%); 93.3% of those were right | The rest need a person first. |
+| M2 | Field F1, overall | 0.95 | 0.969 (six fields, micro) | Meets the target on synthetic data. Cause of loss is weakest (0.885). |
+| M2 | Policy number F1, loss date F1 | 0.98 | 0.985, 0.985 | Meets the pilot target of 98%. |
+| M3 | Claims needing no data repair (no blocking validation error) | 60% or more | 70.0% (truth 72.5%) | Meets the target, on a set built to contain about 27% of claims that should be refused. |
+| M3 | Auto-routable (no blocking issue and route StraightToHandler) | n/a | 37.5% (truth 47.5%); 93.3% of those were right | The rest need a person first. |
 | M4 | Cost per claim, platform | £0.60 or less | £0.00 local, no model | Not meaningful until Milestone 5. |
 | M5 | End-to-end latency, p95 | 90 s or less | a few milliseconds in process | Not meaningful: no model, no network. |
-| G2 | Claims that raised no issue but had a wrong critical field | 1% or fewer | **7.1%** (1 of 14) | **Target not met.** One case in a small group, but it is above the guardrail. |
+| G2 | Claims that raised no issue but had a wrong critical field | 1% or fewer | **5.9%** (1 of 17) | **Target not met.** One case in a small group, but it is above the guardrail. |
 
 M1 (handler time) cannot be measured without handlers and is not claimed.
 
@@ -73,11 +73,11 @@ will be judged against once a model is in the loop.
 
 | Check | Proposed target | Measured locally (test split) | CI gate |
 |---|---|---|---|
-| F1 on policy number and loss date | 0.97 or more | 0.982 and 0.982 | 0.95 |
-| F1 on claimant, estimated amount | 0.92 or more | 0.967 and 0.982 | 0.93 and 0.95 |
-| F1 on cause of loss (class of the description) | n/a | 0.889 | 0.85 |
+| F1 on policy number and loss date | 0.97 or more | 0.985 and 0.985 | 0.95 |
+| F1 on claimant, estimated amount | 0.92 or more | 0.971 and 0.984 | 0.93 and 0.95 |
+| F1 on cause of loss (class of the description) | n/a | 0.885 | 0.85 |
 | Policy citations supported by the retrieved wording | 0.90 or more | 1.000 (by construction for the rules assessor) | 1.00 |
-| Route accuracy | n/a | 88.9% | 85% |
+| Route accuracy | n/a | 87.5% | 85% |
 | Mean cost per claim on the evaluation set | £0.60 or less | £0.00 (no model) | 0 |
 | p95 latency on the evaluation set | 90 seconds or less | a few ms (no model) | 250 ms |
 

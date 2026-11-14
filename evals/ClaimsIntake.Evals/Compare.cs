@@ -244,7 +244,7 @@ public static class ComparisonReport
 
         sb.AppendLine("## Limits");
         sb.AppendLine();
-        sb.AppendLine("Synthetic data written by one author, 36 held-out cases: a difference of one case is about 3 points of route accuracy. Treat close rows as ties in quality and let the cost rule decide, "
+        sb.AppendLine("Synthetic data written by one author, 40 held-out cases: a difference of one case is 2.5 points of route accuracy. Treat close rows as ties in quality and let the cost rule decide, "
             + "and re-run before relying on a pick. See evals/README.md.");
         return sb.ToString();
     }

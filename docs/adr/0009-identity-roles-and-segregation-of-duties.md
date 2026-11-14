@@ -156,7 +156,7 @@ Costs and limits:
 - The review store is still in memory (REL-01), so decisions are audited durably only when the Table Storage audit log is
   on; the claim state itself is lost on a restart. The audit write and the claim save are two steps, not a transaction:
   a crash between them leaves a record without a state change (harmless) or, for the reject path, a state change without
-  its record. The durable store in Milestone 7 should write them together.
+  its record. The durable store, when it is built, should write them together.
 - The per-claim gate dictionary still grows by one entry per claim (REL-08, left open).
 - **Group-based role assignment and Conditional Access** are not designed here. They are Entra configuration, not code.
 

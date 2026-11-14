@@ -39,7 +39,7 @@ also printed in every report:
 6. **No pick** if nothing passes. The report lists each candidate and the gates it failed.
 7. **Caveats are attached, not applied.** A price marked verify-before-use is flagged on the pick.
 
-Why cost first among the passing: quality is a gate and not a score because on 36 synthetic cases one claim is 3 points of
+Why cost first among the passing: quality is a gate and not a score because on 40 synthetic cases one claim is 2.5 points of
 route accuracy, so ranking models by small quality differences would rank noise. Above the bar, the customer's
 success metric M4 is cost per claim (target £0.60 or less, [01-success-metrics.md](../01-success-metrics.md)), and the
 rule minimises it. If the team would rather pay for headroom, change rule 4 and this ADR together, never one alone.
@@ -100,7 +100,7 @@ Not implemented. Fine-tune a small model only if **all** of these hold:
    charge even when idle), re-tuning on each base-model change, and a person's time. At pilot volumes this is unlikely; do
    the sum with real prices and the real volume.
 3. **There is enough, and good enough, labelled data.** At least a few hundred reviewed claims per document type that matter,
-   drawn from real handler corrections, with a test set that no tuning run has seen. 51 synthetic claims written by one
+   drawn from real handler corrections, with a test set that no tuning run has seen. 58 synthetic claims written by one
    author are neither enough nor independent, and tuning on them would only teach the model the generator's habits.
 4. **The latency or residency need cannot be met otherwise** (for example a model that must run inside a boundary the large
    model cannot), or the volume makes per-token cost the dominant cost.

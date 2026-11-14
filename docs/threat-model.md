@@ -7,7 +7,7 @@ Scope: the data flow below, as built after Milestone 6a. Finding ids (SEC-01, AI
 
 - **Mitigated (offline)**: a control in code, proven by a test in this repository.
 - **Mitigated (Azure unverified)**: a control in code or configuration whose Azure behaviour has never run.
-- **Open**: not fixed. A known limitation in the README, scheduled for Milestone 7 or later.
+- **Open**: not fixed. A known limitation in the README, scheduled for later.
 
 Nothing here has been run on Azure or against a real Entra ID tenant. "Tested" means an offline test with fakes or
 test-signed tokens.
@@ -64,7 +64,7 @@ test-signed tokens.
 |---|---|---|
 | "I did not approve that" (SEC-04) | `decision.approved`, `.rejected`, `.submitted`, `.submit_failed` in the audit trail with `oid`, role, route, outcome, legacy reference; written before the legacy call. Guardrail G1 is a test | Mitigated (offline). Durable only with the Table Storage log, never run on Azure |
 | An audit entry is lost or doubled on a retry (REL-05) | Deterministic row keys, upserts, the trail written before the claim. Test: a table that fails on the second append, then a redelivery | Mitigated (offline) |
-| A decision is saved without its record, or the reverse | Audit and state are two writes, not a transaction | **Open** (known limit, fixed with the durable store in Milestone 7) |
+| A decision is saved without its record, or the reverse | Audit and state are two writes, not a transaction | **Open** (known limit, fixed with the durable store) |
 
 ### Information disclosure
 

@@ -17,7 +17,7 @@ Requirements that shape the choice:
 
 - A document must never be silently dropped. A failure must be visible and retryable. **This holds on the Azure path
   only with two caveats, stated plainly (Milestone 6b review):** the review store is in memory, so an API restart
-  loses every claim awaiting review (REL-01, fixed with a durable store in Milestone 7; the API is pinned to one
+  loses every claim awaiting review (REL-01, to be fixed with a durable store, which is not built; the API is pinned to one
   instance until then), and the claim-check pattern for very large documents is not built (the hand-off cuts the text
   below 200 KB and tells a person to read the original). What is visible: dead-lettered messages alert, Event Grid
   dead-letters, over-long and over-large inputs reach a person with a blocking issue.
