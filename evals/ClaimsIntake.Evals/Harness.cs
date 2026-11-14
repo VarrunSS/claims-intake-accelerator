@@ -10,36 +10,84 @@ using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
 using ClaimsIntake.Pipeline.Policy;
+using ClaimsIntake.Pipeline.Prompts;
 using ClaimsIntake.Pipeline.Quality;
 using ClaimsIntake.Pipeline.Text;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ClaimsIntake.Evals;
 
 /// <summary>The pieces of the pipeline an evaluation run configures. The defaults are the local, offline ones.</summary>
-public sealed record PipelineConfig(string ExtractorName, IClaimExtractor Extractor, string AssessorName, Func<IClaimAssessor> Assessor);
+public sealed record PipelineConfig(string ExtractorName, IClaimExtractor Extractor, string AssessorName, Func<IClaimAssessor> Assessor)
+{
+    /// <summary>What the run is, for results.json. The offline baseline by default.</summary>
+    public RunInfo Info { get; init; } = RunInfo.Baseline;
+
+    /// <summary>How many claims are processed at once. Model calls are separately bounded by the <see cref="CallPolicy"/>.</summary>
+    public int Parallelism { get; init; } = 1;
+}
+
+/// <summary>The model-backed choices for a run: which model, which prompt version, how calls are spaced.</summary>
+/// <param name="ClientFactory">Builds the chat client for an entry. Defaults to the real one; the tests pass scripted clients.</param>
+public sealed record ModelSelection(ModelEntry Model, string PromptVersion, CallPolicy Policy, Func<ModelEntry, IChatClient>? ClientFactory = null);
 
 public static class PipelineConfigs
 {
     /// <summary>
-    /// Builds the configuration for the names the command line accepts. Only the offline implementations can run here: the
-    /// model-backed ones need Azure credentials and arrive with the comparison harness in Milestone 5.
+    /// Builds the configuration for the names the command line accepts: <c>heuristic</c> or <c>llm</c> for the extractor,
+    /// <c>rules</c> or <c>agent</c> for the assessor. The model-backed ones need a <see cref="ModelSelection"/>; they are
+    /// never built unless asked for, so the offline gate needs no credentials.
     /// </summary>
-    public static PipelineConfig Create(string extractor, string assessor)
+    public static PipelineConfig Create(
+        string extractor, string assessor, ModelSelection? selection = null, IReadOnlyList<PolicyWording>? wordings = null, string? label = null, int parallelism = 1)
     {
-        if (!extractor.Equals("heuristic", StringComparison.OrdinalIgnoreCase))
+        var llm = extractor.Equals("llm", StringComparison.OrdinalIgnoreCase);
+        var agent = assessor.Equals("agent", StringComparison.OrdinalIgnoreCase);
+        if (!llm && !extractor.Equals("heuristic", StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException(
-                $"Extractor \"{extractor}\" is not available offline. Only \"heuristic\" runs here; model-backed extractors are compared in Milestone 5.");
+            throw new NotSupportedException($"Extractor \"{extractor}\" is unknown. Use \"heuristic\" or \"llm\".");
         }
 
-        if (!assessor.Equals("rules", StringComparison.OrdinalIgnoreCase))
+        if (!agent && !assessor.Equals("rules", StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException(
-                $"Assessor \"{assessor}\" is not available offline. Only \"rules\" runs here; the agent assessor is compared in Milestone 5.");
+            throw new NotSupportedException($"Assessor \"{assessor}\" is unknown. Use \"rules\" or \"agent\".");
         }
 
-        return new PipelineConfig("heuristic", new HeuristicClaimExtractor(), "rules", () => new RuleBasedClaimAssessor());
+        if (!llm && !agent)
+        {
+            return new PipelineConfig("heuristic", new HeuristicClaimExtractor(), "rules", () => new RuleBasedClaimAssessor()) { Parallelism = parallelism };
+        }
+
+        if (selection is null)
+        {
+            throw new ArgumentException("--extractor llm and --assessor agent need --model <id> (see evals/models.json).");
+        }
+
+        var model = selection.Model;
+        IChatClient Client(Func<ModelEntry, IChatClient> fake) =>
+            new MeteringChatClient(selection.ClientFactory?.Invoke(model) ?? (model.IsFake ? fake(model) : ChatClientFactory.Create(model)), selection.Policy);
+
+        var prompts = new List<PromptInfo>();
+        IClaimExtractor claimExtractor = new HeuristicClaimExtractor();
+        if (llm)
+        {
+            var prompt = PromptLibrary.Get(PromptLibrary.Extraction, selection.PromptVersion);
+            prompts.Add(new PromptInfo(prompt.Kind, prompt.Version, prompt.Sha256));
+            claimExtractor = new FoundryLlmClaimExtractor(Client(FakeModels.CreateExtraction), prompt);
+        }
+
+        Func<IClaimAssessor> claimAssessor = () => new RuleBasedClaimAssessor();
+        if (agent)
+        {
+            var prompt = PromptLibrary.Get(PromptLibrary.Assessment, selection.PromptVersion);
+            prompts.Add(new PromptInfo(prompt.Kind, prompt.Version, prompt.Sha256));
+            var client = Client(m => FakeModels.CreateAssessment(m, wordings ?? throw new ArgumentException("The fake assessor needs the policy wordings.")));
+            claimAssessor = () => new AgentClaimAssessor(client, prompt);
+        }
+
+        var info = new RunInfo(label ?? $"{model.Id}@{selection.PromptVersion}", model.Id, model.Kind, model.IsFake, prompts, model.Price);
+        return new PipelineConfig(llm ? "llm" : "heuristic", claimExtractor, agent ? "agent" : "rules", claimAssessor) { Info = info, Parallelism = parallelism };
     }
 }
 
@@ -47,7 +95,7 @@ public static class PipelineConfigs
 public sealed record StageTiming(string Stage, double Milliseconds);
 
 /// <summary>What the pipeline produced for a case, and how long each stage took. <see cref="Claim"/> is null when the pipeline threw.</summary>
-public sealed record CaseRun(EvalCase Case, ProposedClaim? Claim, IReadOnlyList<StageTiming> Timings, string? Error);
+public sealed record CaseRun(EvalCase Case, ProposedClaim? Claim, IReadOnlyList<StageTiming> Timings, string? Error, UsageRecord? Usage = null);
 
 /// <summary>
 /// Runs cases through the configured pipeline in process. Each case gets its own clock fixed at the case's received time,
@@ -59,7 +107,7 @@ public sealed class Harness : IDisposable
     private readonly PipelineConfig _config;
     private readonly IPolicyLookup _policies = new SeededPolicyLookup();
     private readonly IPolicyWordingSearch _search;
-    private readonly ConcurrentQueue<(string DocumentId, string Stage, double Ms)> _spans = new();
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<StageTiming>> _spans = new(StringComparer.Ordinal);
     private readonly ActivityListener _listener;
 
     public Harness(PipelineConfig config, IReadOnlyList<PolicyWording> wordings)
@@ -76,7 +124,7 @@ public sealed class Harness : IDisposable
                     && activity.GetTagItem(PipelineTelemetry.DocumentId) is string document
                     && activity.GetTagItem(PipelineTelemetry.DurationMs) is double ms)
                 {
-                    _spans.Enqueue((document, stage, ms));
+                    _spans.GetOrAdd(document, _ => new()).Enqueue(new StageTiming(stage, ms));
                 }
             },
         };
@@ -111,6 +159,13 @@ public sealed class Harness : IDisposable
             InputQualityGate.CreateDefault(options, hashes));
 
         var document = new IntakeDocument(documentId, item.File, BinaryData.FromBytes(item.Content), item.Context.ReceivedAt);
+
+        // Per-claim scopes: token and retry counts, output-quality counts, and (fake models only) the case being answered.
+        var usage = new CaseUsage();
+        var outputs = new ModelRunMetrics();
+        CaseUsage.Current = usage;
+        ModelRunMetrics.Current = outputs;
+        FakeModelContext.Current = item;
         string? error = null;
         try
         {
@@ -120,17 +175,15 @@ public sealed class Harness : IDisposable
         {
             error = ex.GetType().Name;
         }
-
-        var timings = new List<StageTiming>();
-        while (_spans.TryDequeue(out var span))
+        finally
         {
-            if (span.DocumentId == ClaimIntakePipeline.Sanitise(documentId))
-            {
-                timings.Add(new StageTiming(span.Stage, span.Ms));
-            }
+            CaseUsage.Current = null;
+            ModelRunMetrics.Current = null;
+            FakeModelContext.Current = null;
         }
 
-        return new CaseRun(item, sink.Claim, timings, error);
+        var timings = _spans.TryRemove(ClaimIntakePipeline.Sanitise(documentId), out var queue) ? [.. queue] : new List<StageTiming>();
+        return new CaseRun(item, sink.Claim, timings, error, usage.Snapshot(outputs));
     }
 
     public void Dispose() => _listener.Dispose();

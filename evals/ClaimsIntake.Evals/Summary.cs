@@ -43,7 +43,9 @@ public sealed record EvalSummary(
     IReadOnlyList<LatencySummary> Latency,
     double CostPerClaimGbp,
     IReadOnlyList<TagSummary> Tags,
-    IReadOnlyDictionary<string, double?> Metrics);
+    IReadOnlyDictionary<string, double?> Metrics,
+    RunInfo? Run = null,
+    ModelUsageSummary? Model = null);
 
 public static class Summariser
 {
@@ -55,7 +57,7 @@ public static class Summariser
 
     private static readonly string[] RouteLabels = [nameof(ReviewRoute.StraightToHandler), nameof(ReviewRoute.SeniorReview), CaseScorer.NoRoute];
 
-    public static EvalSummary Summarise(string runId, string split, string extractor, string assessor, IReadOnlyList<CaseScore> scores)
+    public static EvalSummary Summarise(string runId, string split, string extractor, string assessor, IReadOnlyList<CaseScore> scores, RunInfo? run = null)
     {
         var perField = FieldNames.All.ToDictionary(f => f, f => PrfSummary.From(Counts.Sum(scores.Select(s => s.FieldCounts(f)))));
         var overall = Counts.Sum(scores.Select(s => s.FieldCounts()));
@@ -80,8 +82,28 @@ public static class Summariser
             perField, PrfSummary.From(overall), PrfSummary.From(issues),
             scores.Count == 0 ? null : scores.Count(s => s.HadLowConfidenceWarning) / (double)scores.Count,
             PrfSummary.From(findings), RouteOf(matrix), grounded, AutoRouteOf(scores), LatencyOf(scores), 0.0, TagsOf(scores),
-            new Dictionary<string, double?>());
+            new Dictionary<string, double?>(), run);
+        var model = run is { IsModelRun: true } ? ModelUsageOf(scores, run) : null;
+        summary = summary with { Model = model, CostPerClaimGbp = model?.CostPerClaimGbp ?? 0.0 };
         return summary with { Metrics = FlatMetrics(summary) };
+    }
+
+    private static ModelUsageSummary ModelUsageOf(IReadOnlyList<CaseScore> scores, RunInfo run)
+    {
+        var usage = scores.Select(s => s.Usage ?? UsageRecord.None).ToList();
+        var input = usage.Sum(u => u.InputTokens);
+        var output = usage.Sum(u => u.OutputTokens);
+        var calls = usage.Sum(u => u.Calls);
+        var missing = usage.Any(u => u.UsageMissing);
+        var malformed = usage.Sum(u => u.MalformedOutputs);
+        var schema = usage.Sum(u => u.SchemaViolations);
+        var callMs = usage.SelectMany(u => u.CallMs).ToList();
+        double? perClaim = run.Price is null || missing || scores.Count == 0 ? null : (double)run.Price.Cost(input, output) / scores.Count;
+        return new ModelUsageSummary(
+            calls, input, output, missing, perClaim, perClaim * 1000, run.Price?.IsVerified ?? false,
+            usage.Sum(u => u.RateLimitRetries), usage.Sum(u => u.ContentFilterRefusals), usage.Sum(u => u.FailedCalls),
+            malformed, schema, calls == 0 ? null : (malformed + schema) / (double)calls, usage.Sum(u => u.GuardRemovals),
+            callMs.Count == 0 ? null : Scoring.Percentile(callMs, 50), callMs.Count == 0 ? null : Scoring.Percentile(callMs, 95));
     }
 
     private static RouteSummary RouteOf(ConfusionMatrix m)
@@ -148,8 +170,18 @@ public static class Summariser
             ["auto_route_precision"] = s.AutoRoute.AutoRoutePrecision,
             ["silent_error_rate"] = s.AutoRoute.SilentErrorRate,
             ["pipeline_errors"] = s.PipelineErrors,
-            ["cost_per_claim_gbp"] = s.CostPerClaimGbp,
+            ["cost_per_claim_gbp"] = s.Model is { UsageMissing: true } or { CostPerClaimGbp: null } ? null : s.CostPerClaimGbp,
         };
+        if (s.Model is { } model)
+        {
+            m["cost_per_1000_claims_gbp"] = model.CostPer1000ClaimsGbp;
+            m["malformed_output_rate"] = model.MalformedOutputRate;
+            m["guard_removed_citations"] = model.GuardRemovals;
+            m["content_filter_refusals"] = model.ContentFilterRefusals;
+            m["rate_limit_retries"] = model.RateLimitRetries;
+            m["model_calls"] = model.Calls;
+        }
+
         foreach (var (field, prf) in s.Fields)
         {
             m[$"field_f1.{field}"] = prf.F1;

@@ -7,7 +7,9 @@ and the infrastructure. Milestone 2 added the intake pipeline, the extractors, t
 to the legacy system, and runs end to end on a laptop in a local mode ([ADR 0005](adr/0005-local-development-mode.md)).
 Milestone 3 added the policy wording search, the agent tools, the coverage assessment and the audit log
 ([ADR 0006](adr/0006-policy-wording-rag.md)).
-Parts that are not built yet carry the milestone that adds them in their label. The table below the diagram
+Milestone 5 added a model comparison and prompt versioning harness around the same extractor and assessor
+([ADR 0008](adr/0008-model-selection-and-tuning.md)); it is an evaluation tool, not a runtime component, and has never been run
+against a real model. Parts that are not built yet carry the milestone that adds them in their label. The table below the diagram
 gives the status of each component, and the section after it shows how the two modes differ.
 
 ## Flow

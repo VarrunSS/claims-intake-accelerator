@@ -28,6 +28,29 @@ param enableKeyVaultPurgeProtection bool = true
 @description('Azure AI Search tier. free costs nothing but there is one per subscription and it has no SLA; basic is about 70 pounds a month.')
 param searchSku string = 'free'
 
+@description('Create the Azure AI Foundry (AIServices) account and its model deployments. Off by default: no model is deployed and nothing here costs anything until it is turned on. See docs/runbook-model-comparison.md.')
+param deployFoundry bool = false
+
+@description('Model deployments for the Foundry account (see modules/foundry.bicep for the shape). Names, versions and quota vary by subscription, so none are assumed.')
+param foundryDeployments array = []
+
+@allowed([
+  'Heuristic'
+  'Foundry'
+])
+@description('Intake:ClaimExtractor in the Function App. Foundry needs deployFoundry and at least one deployment, and uses the first one.')
+param claimExtractor string = 'Heuristic'
+
+@allowed([
+  'Rules'
+  'Agent'
+])
+@description('Intake:Assessor in the Function App. Agent needs deployFoundry and at least one deployment, and uses the first one.')
+param assessor string = 'Rules'
+
+@description('Prompt version for the model-backed stages (prompts/<kind>/<version>.md).')
+param promptVersion string = 'v1'
+
 var tags = {
   'azd-env-name': environmentName
   workload: 'claims-intake-accelerator'
@@ -45,6 +68,7 @@ var names = {
   inboxStorage: 'stinbox${take(token, 13)}'
   hostStorage: 'sthost${take(token, 13)}'
   search: 'srch-${environmentName}-${take(token, 6)}'
+  foundry: 'ais-${environmentName}-${take(token, 6)}'
   serviceBus: 'sb-${environmentName}-${take(token, 6)}'
   keyVault: 'kv-${take(environmentName, 8)}-${take(token, 8)}'
   functionPlan: 'plan-func-${environmentName}-${take(token, 6)}'
@@ -150,6 +174,18 @@ module keyVault 'modules/keyvault.bicep' = {
   }
 }
 
+module foundry 'modules/foundry.bicep' = if (deployFoundry) {
+  name: 'foundry'
+  scope: rg
+  params: {
+    name: names.foundry
+    location: location
+    tags: tags
+    principalId: identity.outputs.principalId
+    deployments: foundryDeployments
+  }
+}
+
 module functionApp 'modules/functionapp.bicep' = {
   name: 'function-app'
   scope: rg
@@ -168,6 +204,11 @@ module functionApp 'modules/functionapp.bicep' = {
     apiBaseUrl: apiBaseUrl
     searchEndpoint: search.outputs.endpoint
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
+    claimExtractor: claimExtractor
+    assessor: assessor
+    promptVersion: promptVersion
+    foundryEndpoint: deployFoundry ? foundry.outputs.openAiEndpoint : ''
+    foundryDeployment: deployFoundry && !empty(foundryDeployments) ? foundryDeployments[0].name : ''
   }
 }
 
@@ -213,6 +254,8 @@ output INBOX_STORAGE_ACCOUNT string = inboxStorage.outputs.name
 output SERVICE_BUS_NAMESPACE string = serviceBus.outputs.fullyQualifiedNamespace
 output KEY_VAULT_URI string = keyVault.outputs.uri
 output SEARCH_ENDPOINT string = search.outputs.endpoint
+output FOUNDRY_OPENAI_ENDPOINT string = deployFoundry ? foundry.outputs.openAiEndpoint : ''
+output FOUNDRY_INFERENCE_ENDPOINT string = deployFoundry ? foundry.outputs.inferenceEndpoint : ''
 output AUDIT_TABLE_ENDPOINT string = hostStorage.outputs.tableEndpoint
 output FUNCTION_APP_NAME string = functionApp.outputs.name
 output API_URI string = appService.outputs.apiUri

@@ -30,6 +30,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The versioned prompts (prompts/<kind>/v<n>.md) are embedded so the Function and the evaluation read the same text. -->
+    <EmbeddedResource Include="..\..\prompts\*\v*.md" LogicalName="prompts/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="ClaimsIntake.Pipeline.Tests" />
   </ItemGroup>
 

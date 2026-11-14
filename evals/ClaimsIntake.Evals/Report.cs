@@ -31,8 +31,23 @@ public static class Report
         var sb = new StringBuilder();
         sb.AppendLine(CultureInfo.InvariantCulture, $"# Evaluation report: {s.Split} split, run {s.RunId}");
         sb.AppendLine();
-        sb.AppendLine(CultureInfo.InvariantCulture,
-            $"{s.Cases} synthetic claims, extractor `{s.Extractor}`, assessor `{s.Assessor}`. Fully offline: no model, no network, no credentials. **These are not real-model numbers**; the model-backed paths are compared in Milestone 5.");
+        if (s.Run is { IsFake: true })
+        {
+            sb.AppendLine("> **FAKE — pipeline demonstration, not a model result.** The model in this run is a scripted stand-in that knows the ground truth. Its numbers, tokens, prices and latencies are not those of any real model.");
+            sb.AppendLine();
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{s.Cases} synthetic claims, extractor `{s.Extractor}`, assessor `{s.Assessor}`, model `{s.Run.ModelId}`.");
+        }
+        else if (s.Run is { IsRealModel: true })
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture,
+                $"{s.Cases} synthetic claims, extractor `{s.Extractor}`, assessor `{s.Assessor}`, model `{s.Run.ModelId}` ({s.Run.ModelKind}). A real model was called in this run. Synthetic data: see the limitations in evals/README.md.");
+        }
+        else
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture,
+                $"{s.Cases} synthetic claims, extractor `{s.Extractor}`, assessor `{s.Assessor}`. Fully offline: no model, no network, no credentials. **These are not real-model numbers**; the model-backed paths run with `--extractor llm --assessor agent --model <id>` (docs/runbook-model-comparison.md).");
+        }
+
         sb.AppendLine();
         sb.AppendLine(
             "The data is synthetic and written by the same author as the extractor, so the numbers show where the heuristics are weak, not how a real "
@@ -64,9 +79,38 @@ public static class Report
         sb.AppendLine(CultureInfo.InvariantCulture, $"| Citation groundedness (clause exists / text matches) | {Pct(s.Groundedness.ExistsShare)} / {Pct(s.Groundedness.TextMatchShare)} of {s.Groundedness.Citations} citations |");
         sb.AppendLine(CultureInfo.InvariantCulture, $"| Auto-routable | {Pct(s.AutoRoute.PredictedAutoRoutableRate)} (truth {Pct(s.AutoRoute.ExpectedAutoRoutableRate)}) |");
         sb.AppendLine(CultureInfo.InvariantCulture, $"| Needs a person first | {Pct(s.AutoRoute.PredictedNeedsHumanRate)} |");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"| Cost per claim | £{s.CostPerClaimGbp:0.00} (local, no model; measured in Milestone 5) |");
+        sb.AppendLine(s.Model is null
+            ? "| Cost per claim | £0.00 (local, no model) |"
+            : string.Create(CultureInfo.InvariantCulture, $"| Cost per claim | {(s.Model.CostPerClaimGbp is { } costPerClaim ? $"£{costPerClaim:0.0000}" : "n/a (no token usage reported)")}{(s.Run is { IsFake: true } ? " (FAKE prices)" : s.Model.PriceVerified ? "" : " (price marked verify-before-use)")} |"));
         sb.AppendLine(CultureInfo.InvariantCulture, $"| Pipeline errors (threw instead of producing a claim) | {s.PipelineErrors} |");
         sb.AppendLine();
+
+        if (s.Run is { IsModelRun: true } run && s.Model is { } m)
+        {
+            sb.AppendLine("## Model run");
+            sb.AppendLine();
+            sb.AppendLine("| | |");
+            sb.AppendLine("|---|---|");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Model | `{run.ModelId}` ({run.ModelKind}){(run.IsFake ? " **FAKE**" : "")} |");
+            foreach (var p in run.Prompts)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"| Prompt, {p.Kind} | {p.Version}, SHA-256 `{p.Sha256}` |");
+            }
+
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Model calls | {m.Calls} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Tokens (input / output) | {m.InputTokens:N0} / {m.OutputTokens:N0}{(m.UsageMissing ? " (the model did not report usage on every call; cost is not computed)" : "")} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Price used (GBP per 1M, input / output) | {(run.Price is null ? "n/a" : $"{run.Price.InputPer1M} / {run.Price.OutputPer1M}, as of {run.Price.AsOf}, {run.Price.Status}")} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Cost per claim / per 1,000 claims | {(m.CostPerClaimGbp is { } pc ? $"£{pc:0.0000} / £{m.CostPer1000ClaimsGbp:0.00}" : "n/a")} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Model call latency p50 / p95 | {Ms(m.CallP50Ms)} / {Ms(m.CallP95Ms)} ms |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Rate-limit (429) retries | {m.RateLimitRetries} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Content-filter refusals | {m.ContentFilterRefusals} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Calls that failed after retries | {m.FailedCalls} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Malformed replies (empty or not JSON) | {m.MalformedOutputs} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Schema violations (JSON of the wrong shape) | {m.SchemaViolations} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Malformed-output rate (per model call) | {Pct(m.MalformedOutputRate)} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| Citations and findings removed by the citation guard | {m.GuardRemovals} |");
+            sb.AppendLine();
+        }
 
         sb.AppendLine("## Fields");
         sb.AppendLine();
@@ -255,7 +299,18 @@ public static class Report
         sb.AppendLine(CultureInfo.InvariantCulture, $"  auto-routable         {Pct(s.AutoRoute.PredictedAutoRoutableRate)} (truth {Pct(s.AutoRoute.ExpectedAutoRoutableRate)}); needs a person {Pct(s.AutoRoute.PredictedNeedsHumanRate)}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"  silent errors (G2)    {Pct(s.AutoRoute.SilentErrorRate)} ({s.AutoRoute.PassedWithNoFlagsButWrongCriticalField} of {s.AutoRoute.PassedWithNoFlags} unflagged claims)");
         var total = s.Latency.FirstOrDefault(l => l.Stage == Summariser.Total);
-        sb.AppendLine(CultureInfo.InvariantCulture, $"  latency per claim     p50 {Ms(total?.P50Ms)} ms, p95 {Ms(total?.P95Ms)} ms; cost £0.00 (local)");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  latency per claim     p50 {Ms(total?.P50Ms)} ms, p95 {Ms(total?.P95Ms)} ms; cost {(s.Model is null ? "£0.00 (local)" : s.Model.CostPerClaimGbp is { } cpc ? $"£{cpc:0.0000} per claim" : "n/a")}");
+        if (s.Run is { IsFake: true })
+        {
+            sb.AppendLine("  FAKE model: pipeline demonstration, not a model result.");
+        }
+
+        if (s.Model is { } mm)
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  model calls           {mm.Calls}, tokens {mm.InputTokens:N0} in / {mm.OutputTokens:N0} out, 429 retries {mm.RateLimitRetries}, content-filter refusals {mm.ContentFilterRefusals}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  output quality        malformed {mm.MalformedOutputs}, schema violations {mm.SchemaViolations}, citations removed by the guard {mm.GuardRemovals}");
+        }
+
         if (gate is not null)
         {
             sb.AppendLine(gate.Passed

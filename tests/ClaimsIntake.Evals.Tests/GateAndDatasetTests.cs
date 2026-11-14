@@ -382,10 +382,12 @@ public class PlumbingTests
     }
 
     [Fact]
-    public void Only_the_offline_implementations_can_be_configured_here()
+    public void The_offline_implementations_need_no_model_and_the_model_ones_refuse_to_be_built_without_one()
     {
         Assert.Equal("heuristic", PipelineConfigs.Create("Heuristic", "Rules").ExtractorName);
-        Assert.Throws<NotSupportedException>(() => PipelineConfigs.Create("foundry", "rules"));
-        Assert.Throws<NotSupportedException>(() => PipelineConfigs.Create("heuristic", "agent"));
+        Assert.Throws<NotSupportedException>(() => PipelineConfigs.Create("foundry", "rules")); // Not a name we know.
+        Assert.Throws<NotSupportedException>(() => PipelineConfigs.Create("heuristic", "swarm"));
+        Assert.Throws<ArgumentException>(() => PipelineConfigs.Create("llm", "rules"));
+        Assert.Throws<ArgumentException>(() => PipelineConfigs.Create("heuristic", "agent"));
     }
 }

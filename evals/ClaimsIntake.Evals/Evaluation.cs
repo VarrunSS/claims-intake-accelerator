@@ -47,7 +47,8 @@ public sealed record CaseScore(
     bool PassedWithNoFlags,
     bool WrongCriticalField,
     IReadOnlyList<StageTiming> Timings,
-    string? Error)
+    string? Error,
+    UsageRecord? Usage = null)
 {
     public Counts FieldCounts(string? field = null) =>
         Counts.Sum(Fields.Where(f => field is null || f.Key == field).Select(f => Scoring.ToCounts(f.Value)));
@@ -111,7 +112,7 @@ public static class CaseScorer
             expected.Route, route, expectedAuto, predictedAuto,
             !HasBlockingIssue(expected.IssueCodes), !HasBlockingIssue(predictedIssueCodes),
             claim is not null && !flagged, claim is not null && !flagged && wrongCritical,
-            run.Timings, run.Error);
+            run.Timings, run.Error, run.Usage);
     }
 
     private static bool HasBlockingIssue(IEnumerable<string> codes) => codes.Any(c => !WarningCodes.Contains(c));

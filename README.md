@@ -12,7 +12,7 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestones 1 to 4 are done. The rest is planned and not started. Everything runs locally with only the .NET
+Milestones 1 to 5 are done. The rest is planned and not started. Everything runs locally with only the .NET
 SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been run** (see below).
 
 | # | Milestone | Status |
@@ -21,7 +21,7 @@ SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been
 | 2 | Happy path: document in, extracted and validated claim in the Angular review UI, approval writes to the legacy system | **Done locally. Azure path compiled and unit-tested only, never run** |
 | 3 | RAG and legacy tools: policy wording search with citations, agent tools, coverage assessment, audit log | **Done locally. Azure path (AI Search, agent on a real model, Table Storage) compiled and unit-tested against fakes only, never run** |
 | 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, input-quality checks | **Done locally.** Local pipeline only, on 36 held-out synthetic claims: field F1 0.968, route accuracy 88.9%, citations 100% grounded (by construction), 41.7% auto-routable. **No real-model number exists yet** |
-| 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | Not started |
+| 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | **Done as a harness, verified on scripted fakes only. Real models not run: no model has been measured, no model is recommended** |
 | 6 | Security and observability: split identities, PII redaction, threat model, App Insights workbook | Not started |
 | 7 | Packaging: demo, runbook, final README and measured results | Not started |
 
@@ -59,6 +59,7 @@ Design decisions are in [docs/adr](docs/adr):
 5. [Local development mode](docs/adr/0005-local-development-mode.md)
 6. [Policy wording search, agent tools and the citation guard](docs/adr/0006-policy-wording-rag.md)
 7. [Evaluation, input quality and a deterministic notification date](docs/adr/0007-evaluation-approach.md)
+8. [Model selection, prompt tuning and when fine-tuning would be worth it](docs/adr/0008-model-selection-and-tuning.md)
 
 Customer documents: [discovery](docs/00-discovery.md) and [success metrics](docs/01-success-metrics.md).
 
@@ -149,6 +150,23 @@ finding precision 1.000 and recall 0.853; route accuracy **88.9%**; **41.7%** au
 The weak spots are emails (route accuracy 63.6% over 11 cases), unusual phrasing of the cause of loss, and a silent-error
 rate of 7.1% (1 of 14 unflagged claims) against a 1% guardrail, which is not met.
 
+### Milestone 5: model comparison and prompt tuning harness
+
+**Built and tested against scripted fakes. No real model has been run**, because this project's environment has no Azure AI
+Foundry deployment and no AI credentials. There are no real-model accuracy, cost or latency numbers anywhere in this
+repository, and the committed comparison says "not yet run against real models". With a Foundry project it is one command
+([runbook](docs/runbook-model-comparison.md)). Method and decision rules: [ADR 0008](docs/adr/0008-model-selection-and-tuning.md).
+
+| Piece | What it does |
+|---|---|
+| `evals/models.json` | The registry: three **placeholder** candidates (a GPT-family model, a Claude model on Foundry, a small catalogue model), each with kind, endpoint, deployment, a GBP price per 1M tokens with source URL and date. Every price is marked `verify-before-use`. No keys: `DefaultAzureCredential`. |
+| `--extractor llm --assessor agent --model <id>` | Runs the production extractor and agent assessor over a client built from the registry (`azure-openai`, `azure-ai-inference` or `foundry-anthropic`). Records tokens per call, £ per claim, latency, 429 retries (bounded parallelism, back-off), content-filter refusals, malformed and schema-violating replies, and citations the guard removed. |
+| `prompts/` | Versioned prompts, embedded in the pipeline. `--prompt v1\|v2`; `results.json` records the version and a SHA-256 of the text. v1 is what shipped; v2 is a **hypothesis** aimed at the Milestone 4 weaknesses and is not claimed to be better ([prompts/README.md](prompts/README.md)). |
+| `compare` | Runs model x prompt configurations over one split and writes `comparison.md`: F1, route accuracy, groundedness, guard removals, malformed rate, p50 and p95, £ per claim and per 1,000, and a recommendation **generated from documented decision rules** (cheapest configuration that passes every gate, ties broken by p95). The heuristic baseline is one row and runs for real. |
+| `--dev-fakes` | Dev-only. `fake-oracle` and `fake-noisy` are scripted stand-ins that know the answers. They exercise token accounting, cost maths, the malformed-output and 429 paths and the recommendation end to end. Any output from them is labelled FAKE, and none is committed. |
+| `infra/modules/foundry.bicep` | An AIServices account, model deployments as a parameter, local auth off, and roles for the managed identity. Function app settings switch on `Intake:ClaimExtractor=Foundry` and `Intake:Assessor=Agent`. **Never built or deployed.** |
+| [ADR 0008](docs/adr/0008-model-selection-and-tuning.md) | How models are chosen, when fine-tuning would be worth it, and the data and UK GDPR implications. Fine-tuning is not implemented. |
+
 ## Quickstart
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), and [Node.js](https://nodejs.org) 22 or later
@@ -156,7 +174,7 @@ for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test            # Domain 79, API 113, Pipeline 332, Evals 81 (605 in all)
+dotnet test            # Domain 79, API 113, Pipeline 332, Evals 143 (667 in all)
 dotnet run --project evals/ClaimsIntake.Evals -- --split test --thresholds evals/thresholds.json   # the evaluation, offline
 cd ui && npm ci && npm test && npm run build    # UI: 35 tests, run headless in jsdom
 ```

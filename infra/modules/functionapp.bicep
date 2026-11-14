@@ -38,6 +38,29 @@ param reviewQueueName string = 'claims-for-review'
 param applicationInsightsConnectionString string
 
 @allowed([
+  'Heuristic'
+  'Foundry'
+])
+@description('Intake:ClaimExtractor. Foundry calls the model deployment below through the identity.')
+param claimExtractor string = 'Heuristic'
+
+@allowed([
+  'Rules'
+  'Agent'
+])
+@description('Intake:Assessor. Agent runs the Agent Framework assessor on the model deployment below.')
+param assessor string = 'Rules'
+
+@description('Intake:PromptVersion, the prompts/ version used by the model-backed stages.')
+param promptVersion string = 'v1'
+
+@description('Azure OpenAI endpoint of the Foundry account, empty when none is deployed.')
+param foundryEndpoint string = ''
+
+@description('Name of the model deployment the extractor and the agent use, empty when none is deployed.')
+param foundryDeployment string = ''
+
+@allowed([
   512
   2048
   4096
@@ -127,7 +150,13 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         // other resource. To use Azure AI Search, run the ingestion tool, deploy an embedding model, then set
         // Intake__PolicySearch to AzureAiSearch and Intake__Foundry__Endpoint / EmbeddingDeployment. The agent
         // assessor (Intake__Assessor = Agent) also needs Intake__Foundry__Deployment. Neither model is in this template.
-        { name: 'Intake__Assessor', value: 'Rules' }
+        { name: 'Intake__Assessor', value: assessor }
+        // Model-backed stages (Milestone 5). The defaults keep both off. Turn them on with the claimExtractor and assessor
+        // parameters; the identity's role on the Foundry account comes from modules/foundry.bicep.
+        { name: 'Intake__ClaimExtractor', value: claimExtractor }
+        { name: 'Intake__PromptVersion', value: promptVersion }
+        { name: 'Intake__Foundry__Endpoint', value: foundryEndpoint }
+        { name: 'Intake__Foundry__Deployment', value: foundryDeployment }
         { name: 'Intake__PolicySearch', value: 'Local' }
         { name: 'Intake__AzureAiSearch__Endpoint', value: searchEndpoint }
         { name: 'Intake__AzureAiSearch__IndexName', value: 'policy-wordings' }

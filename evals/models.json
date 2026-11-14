@@ -1,0 +1,56 @@
+{
+  "description": "Candidate models for the comparison (Milestone 5). Three PLACEHOLDERS: nothing here has been deployed or run. Fill in endpoint and deployment, set enabled to true, and check the price, then run the compare command in docs/runbook-model-comparison.md. No keys belong in this file: authentication is DefaultAzureCredential (az login locally, a managed identity in Azure). Kinds: azure-openai (Azure OpenAI / Foundry OpenAI deployments), azure-ai-inference (Foundry model inference endpoint, for catalogue models such as Phi), foundry-anthropic (Claude on Foundry, which uses the Anthropic Messages API; endpoint is the Foundry resource name).",
+  "models": [
+    {
+      "id": "gpt-mid",
+      "displayName": "GPT-family mid-size model (placeholder: pick the deployment you have quota for)",
+      "kind": "azure-openai",
+      "endpoint": "https://<your-foundry-resource>.openai.azure.com/",
+      "deployment": "<your-gpt-deployment-name>",
+      "enabled": false,
+      "price": {
+        "currency": "GBP",
+        "inputPer1M": 1.60,
+        "outputPer1M": 6.40,
+        "sourceUrl": "https://azure.microsoft.com/en-gb/pricing/details/cognitive-services/openai-service/",
+        "asOf": "2026-11-14",
+        "status": "verify-before-use"
+      },
+      "notes": "PLACEHOLDER PRICE, not taken from any page. The official Azure OpenAI pricing page was opened on 2026-11-14 and its price cells did not render in the text we could read, so no number could be confirmed. Replace with the figures for your deployment type (Global, Data Zone or Regional) and convert to GBP."
+    },
+    {
+      "id": "claude-sonnet",
+      "displayName": "Claude (Sonnet class) on Azure AI Foundry (placeholder)",
+      "kind": "foundry-anthropic",
+      "endpoint": "<your-foundry-resource-name>",
+      "deployment": "<your-claude-deployment-name>",
+      "enabled": false,
+      "price": {
+        "currency": "GBP",
+        "inputPer1M": 2.30,
+        "outputPer1M": 11.50,
+        "sourceUrl": "https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/claude-models-billing",
+        "asOf": "2026-11-14",
+        "status": "verify-before-use"
+      },
+      "notes": "PLACEHOLDER PRICE. Microsoft's billing page says Claude on Foundry is invoiced in Claude Consumption Units converted from Anthropic's published per-model token rates, so the token rate comes from Anthropic's pricing page and any private offer, not from an Azure price list. The figures here are a rough GBP conversion of a third-party listing and are unverified."
+    },
+    {
+      "id": "small-cheap",
+      "displayName": "Small, cheap catalogue model (placeholder, for example a Phi-class model)",
+      "kind": "azure-ai-inference",
+      "endpoint": "https://<your-foundry-resource>.services.ai.azure.com/models",
+      "deployment": "<your-small-model-deployment-name>",
+      "enabled": false,
+      "price": {
+        "currency": "GBP",
+        "inputPer1M": 0.10,
+        "outputPer1M": 0.40,
+        "sourceUrl": "https://azure.microsoft.com/en-gb/pricing/",
+        "asOf": "2026-11-14",
+        "status": "verify-before-use"
+      },
+      "notes": "PLACEHOLDER PRICE and PLACEHOLDER URL (not opened). Check that the model you choose supports JSON-schema response format and tool calling; the extractor needs the first and the agent assessor needs the second. A model without tool calling can only be compared on extraction."
+    }
+  ]
+}

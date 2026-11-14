@@ -6,6 +6,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Search.Documents;
 using ClaimsIntake.Pipeline.Assessment;
 using ClaimsIntake.Pipeline.Policy;
+using ClaimsIntake.Pipeline.Prompts;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
@@ -65,7 +66,8 @@ public static class ServiceCollectionExtensions
                 services.AddSingleton<IClaimExtractor, HeuristicClaimExtractor>();
                 break;
             default:
-                services.AddSingleton<IClaimExtractor, FoundryLlmClaimExtractor>();
+                services.AddSingleton<IClaimExtractor>(sp => new FoundryLlmClaimExtractor(
+                    sp.GetRequiredService<IChatClient>(), PromptLibrary.Get(PromptLibrary.Extraction, Optional(section, "PromptVersion"))));
                 break;
         }
 
@@ -131,7 +133,8 @@ public static class ServiceCollectionExtensions
                 services.AddSingleton<AssessmentRunner>();
                 break;
             case "Agent":
-                services.AddSingleton<IClaimAssessor, AgentClaimAssessor>();
+                services.AddSingleton<IClaimAssessor>(sp => new AgentClaimAssessor(
+                    sp.GetRequiredService<IChatClient>(), PromptLibrary.Get(PromptLibrary.Assessment, Optional(section, "PromptVersion"))));
                 services.AddSingleton<AssessmentRunner>();
                 break;
         }

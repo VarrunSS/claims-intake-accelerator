@@ -1,0 +1,25 @@
+{
+  "description": "The gate a model configuration must pass to be recommended by `compare` (evals/README.md, ADR 0008). Quality bounds equal the offline baseline's gate in thresholds.json, so a model has to be at least as good as the heuristics to be worth its cost. Cost is deliberately not gated: it is what the recommendation minimises. The reliability bounds are new and have never been measured against a real model: tighten or loosen them with a stated reason after the first real run.",
+  "split": "test",
+  "metrics": {
+    "field_f1_overall": { "min": 0.93 },
+    "field_f1.policy_number": { "min": 0.95 },
+    "field_f1.loss_date": { "min": 0.95 },
+    "field_f1.claimant_name": { "min": 0.93 },
+    "field_f1.estimated_amount_gbp": { "min": 0.95 },
+    "field_f1.notification_date": { "min": 0.97 },
+    "field_f1.cause": { "min": 0.85 },
+    "issue_precision": { "min": 0.80 },
+    "issue_recall": { "min": 0.87 },
+    "finding_precision": { "min": 0.97 },
+    "finding_recall": { "min": 0.82 },
+    "route_accuracy": { "min": 0.85 },
+    "citation_exists": { "min": 1.0 },
+    "citation_text_match": { "min": 1.0 },
+    "auto_route_precision": { "min": 0.90 },
+    "silent_error_rate": { "max": 0.15 },
+    "pipeline_errors": { "max": 0 },
+    "malformed_output_rate": { "max": 0.05 },
+    "latency_p95_ms.process": { "max": 60000 }
+  }
+}

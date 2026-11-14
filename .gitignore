@@ -501,3 +501,6 @@ local-inbox/
 # Evaluation runs are local; only the committed baseline is tracked.
 /evals/results/*
 !/evals/results/baseline/
+!/evals/results/comparison-sample/
+/evals/results/comparison-sample/*
+!/evals/results/comparison-sample/comparison.md

@@ -9,8 +9,9 @@ offline in a few seconds, and in CI it fails the build when a number drops below
 
 **What is measured today is the local pipeline only**: the heuristic extractor and the rules assessor. There are no
 Azure credentials in this project's environment, so no model has been evaluated and **no real-model number exists yet**.
-The model-backed extractor and the agent assessor are only tested for plumbing against fakes. Milestone 5 adds the model
-comparison harness, which will run this same dataset and scorer against real models.
+Milestone 5 added the harness that will run this same dataset and scorer against real models (`--extractor llm --assessor
+agent --model <id>` and `compare`, below). It is tested end to end against scripted fakes and has never been run against a real
+model: see [Model comparison](#model-comparison-milestone-5) and [ADR 0008](../docs/adr/0008-model-selection-and-tuning.md).
 
 ## Run it
 
@@ -25,7 +26,12 @@ python evals/generate_dataset.py                                                
 | `--split dev\|test\|all` | Which cases to run. Default `test`. |
 | `--thresholds <file>` | Exit 1 if any metric is outside its bound. |
 | `--run-id`, `--out` | Writes `<out>/<run-id>/report.md` and `results.json` (default `evals/results/<UTC time>-<split>`). |
-| `--extractor`, `--assessor` | `heuristic` and `rules` are the only offline choices. Others are refused with a message. |
+| `--extractor heuristic\|llm`, `--assessor rules\|agent` | `heuristic` and `rules` run offline and are the default. `llm` and `agent` call a model and need `--model`. |
+| `--model <id>`, `--prompt <version>` | A model from `models.json` (DefaultAzureCredential), and the prompt version (default `v1`). |
+| `--registry <file>`, `--parallelism <n>` | The registry (default `evals/models.json`); claims in flight and the cap on model calls in flight (default 1 offline, 4 for a model). |
+| `--dev-fakes` | Dev only. Allows `--model fake-oracle` and `fake-noisy`. See below. |
+
+`compare` is a second command: `dotnet run --project evals/ClaimsIntake.Evals -- compare [--models a,b] [--prompts v1,v2]`.
 
 Exit codes: 0 all thresholds held, 1 a threshold was missed, 2 the run could not be done. Run results are git-ignored;
 only `results/baseline/` is committed.
@@ -158,8 +164,8 @@ that raised no issue at all, the share with a wrong or missing critical field.
 
 p50 and p95 per stage, in milliseconds, from the pipeline's own spans (one warm-up claim is discarded). These are
 in-process local numbers: a few milliseconds a claim, with no model and no network. They say nothing about model latency,
-and the gate on them is deliberately loose because CI machines vary. Cost per claim is £0.00 locally; the column exists
-so Milestone 5 can fill it.
+and the gate on them is deliberately loose because CI machines vary. Cost per claim is £0.00 locally. For a model run it is the tokens each call reports times the registry price
+(see below).
 
 ## Thresholds
 
@@ -168,6 +174,58 @@ committed baseline, minus a margin of about 0.03 to 0.05**, rounded: not an aspi
 latency, so the margin is room for a small, deliberate change, not noise. A threshold naming a metric the run does not
 produce, or one that was not measured, fails: a typo must not switch the gate off. When the extractor improves, raise the
 bounds in the same change; when a change legitimately lowers a number, lower the bound in the change and say why.
+
+## Model comparison (Milestone 5)
+
+**Never run against a real model.** Everything in this section is verified against scripted fakes only.
+
+### The registry
+
+`evals/models.json` has one entry per candidate: `id`, `kind` (`azure-openai`, `azure-ai-inference`, `foundry-anthropic`),
+`endpoint`, `deployment`, `enabled`, and a `price` in GBP per 1M input and output tokens with a `sourceUrl`, an `asOf` date and
+a `status` that is `verified` or `verify-before-use`. The three shipped entries are disabled placeholders and every price is
+`verify-before-use`: the Azure OpenAI price page was opened on 14 November 2026 and its price cells did not render, and
+Claude on Foundry is billed in Claude Consumption Units at Anthropic's token rates, so none could be confirmed. There are no
+keys in the file; authentication is `DefaultAzureCredential`. A disabled model is reported as "not yet run" and is never
+run. The registry is validated on load (kind, GBP, non-negative prices, dates, no placeholder in an enabled entry).
+
+### What a model run records
+
+Per call, from the `IChatClient` response and a metering wrapper: tokens from `ChatResponse.Usage` (a model that reports none
+is flagged and its cost shown as n/a, never as zero), call latency, retries after HTTP 429 (exponential back-off with jitter,
+capped, five retries, bounded parallelism), content-filter refusals, and calls that failed after retries. Per reply, from the
+extractor and the citation guard: malformed replies (empty or not JSON), schema violations (JSON of the wrong shape, counted
+once per reply), and citations or findings the guard removed. The **malformed-output rate** is malformed plus schema violations
+over model calls. £ per claim is summed token cost over the claims in the split, and £ per 1,000 is that times 1,000. A refusal
+or an exhausted retry becomes a pipeline error for that claim, which the gate counts. `results.json` carries the model, kind,
+prompt versions and hashes, the price used and the counts.
+
+### Prompt versions
+
+The prompts are files in `prompts/<stage>/v<n>.md` (see `prompts/README.md`). `--prompt` picks the version for both
+model-backed stages and `results.json` records each version with its SHA-256. A measured version is never edited.
+
+### The compare command
+
+`compare` runs the baseline (heuristic and rules, a real run), then each model x prompt, over one split, and writes
+`<out>/<run-id>/comparison.md` and `comparison.json`, plus a folder per configuration. The recommendation is generated from the
+data by the rules in ADR 0008, repeated in every report. Quality gates are in `evals/model-thresholds.json` (the baseline's
+quality bounds, a malformed-output ceiling and a p95 ceiling); cost is not gated because the recommendation minimises it. The
+baseline is the reference row and is never a candidate.
+
+The committed sample, `evals/results/comparison-sample/comparison.md`, holds only the real baseline row and three "not yet run
+against real models" rows. It is the output of `compare --run-id comparison-sample` with no credentials.
+
+### The fakes and the dev flag
+
+`--dev-fakes` unlocks `fake-oracle` (returns the ground truth, with synthetic token counts) and `fake-noisy` (the same plus
+scripted faults: unparseable replies, wrong-shaped JSON, a dropped amount, a shifted date, a one-off 429, a content-filter
+refusal, an invented citation). They exist to show the pipeline works: tokens are accounted, cost is computed from them, the
+malformed and retry paths are counted, and the rules pick the oracle because the noisy model, though cheaper, fails the gate.
+Their prices are invented. Any row they produce is labelled "FAKE — pipeline demonstration, not a model result" in the table
+itself. They are not in `models.json`, and the flag is refused without `--dev-fakes`. Fake output is never a model result.
+
+Real runs: [docs/runbook-model-comparison.md](../docs/runbook-model-comparison.md).
 
 ## Limitations
 
@@ -180,5 +238,7 @@ bounds in the same change; when a change legitimately lowers a number, lower the
   patterns that dev motivated may help the test split for the wrong reason.
 - **Rules assessor.** Ground truth for findings assumes the wordings say what the generator's tables say. The rules
   assessor's keyword matching is not evaluated against a handler's judgement of cover.
+- **Model comparison is unproven against real services.** Response shapes, usage reporting, rate-limit behaviour and
+  structured-output support are untested. Latency in a comparison is end to end per claim with several claims in flight.
 - **Not measured:** real-model accuracy, cost, model latency, OCR of real scans (Document Intelligence), non-English
   claims beyond the gate, and any document longer than a page or two.
