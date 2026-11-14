@@ -1,8 +1,8 @@
 // Azure AI Search for the policy wording index (Milestone 3, ADR 0006).
-// Key (API key) authentication is switched off, so callers need an Entra ID role: the identity gets Search Index
+// Key (API key) authentication is switched off, so callers need an Entra ID role: the Function's identity gets Search Index
 // Data Reader in roles.bicep. The index itself is created by the ingestion tool (src/ClaimsIntake.Ingestion), not here.
 //
-// NOT VALIDATED: this has not been through `az bicep build`, what-if or a deployment.
+// Compiles and lints in CI; never deployed.
 
 param name string
 param location string

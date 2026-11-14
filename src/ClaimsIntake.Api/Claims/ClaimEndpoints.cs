@@ -4,6 +4,8 @@ using ClaimsIntake.Domain.Security;
 using ClaimsIntake.Security.AspNetCore;
 using ClaimsIntake.Domain;
 using ClaimsIntake.Domain.Assessment;
+using ClaimsIntake.Api.Http;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ClaimsIntake.Api.Claims;
 
@@ -13,19 +15,36 @@ public static class ClaimEndpoints
 
     public static IEndpointRouteBuilder MapClaimEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/me", Me).RequireAuthorization(Policies.Handler).WithTags("Claims");
+        app.MapGet("/me", Me).RequireAuthorization(Policies.Handler).WithTags("Claims")
+            .WithSummary("Who the token says the caller is, and what roles it carries.")
+            .Produces<MeDto>().ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
 
         // Every claim route needs a signed-in person with a handler role. /history is the exception: it is for the pipeline's
         // app-only identity and refuses user tokens.
-        app.MapGet("/claims/history", History).RequireAuthorization(Policies.ReadHistory).WithTags("Claims");
+        app.MapGet("/claims/history", History).RequireAuthorization(Policies.ReadHistory).WithTags("Claims")
+            .WithSummary("Claims on a policy that could still be duplicates. App-only: the intake pipeline's duplicate check.")
+            .Produces<IEnumerable<ClaimHistoryItem>>().ProducesValidationProblem()
+            .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden);
 
-        var group = app.MapGroup("/claims").WithTags("Claims").RequireAuthorization(Policies.Handler);
+        var group = app.MapGroup("/claims").WithTags("Claims").RequireAuthorization(Policies.Handler)
+            .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
-        group.MapGet("/", ListClaims);
-        group.MapGet("/{id:guid}", GetClaim);
-        group.MapGet("/{id:guid}/audit", GetAudit);
-        group.MapPost("/{id:guid}/approve", ApproveClaim);
-        group.MapPost("/{id:guid}/reject", RejectClaim);
+        group.MapGet("/", ListClaims).WithSummary("Lists claims, oldest first. status is NeedsReview (default), Approved, Rejected, Submitted or all.")
+            .Produces<IEnumerable<ClaimSummary>>().ProducesValidationProblem();
+        group.MapGet("/{id:guid}", GetClaim).WithSummary("One claim with its fields, issues, assessment and source text.")
+            .Produces<ClaimDetail>().ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapGet("/{id:guid}/audit", GetAudit).WithSummary("The tool calls made while the claim was assessed, oldest first.")
+            .Produces<IEnumerable<AuditEntryDto>>().ProducesProblem(StatusCodes.Status404NotFound);
+        group.MapPost("/{id:guid}/approve", ApproveClaim).RequireRateLimiting(RateLimiting.Decisions)
+            .WithSummary("Approves a claim and writes it to the legacy claims system. A claim routed to senior review needs the SeniorHandler role.")
+            .Produces<ClaimDetail>().ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status413PayloadTooLarge).ProducesProblem(StatusCodes.Status422UnprocessableEntity)
+            .ProducesProblem(StatusCodes.Status502BadGateway);
+        group.MapPost("/{id:guid}/reject", RejectClaim).RequireRateLimiting(RateLimiting.Decisions)
+            .WithSummary("Rejects a claim. The reason is required.")
+            .Produces<ClaimDetail>().ProducesValidationProblem().ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status413PayloadTooLarge);
 
         return app;
     }

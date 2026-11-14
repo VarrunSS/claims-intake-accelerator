@@ -184,8 +184,8 @@ public class InputQualityTests
     }
 
     [Fact]
-    public void The_default_gate_has_the_five_checks_in_a_sensible_order() =>
-        Assert.Equal(["document_size", "pdf_integrity", "duplicate_file", "readable_text", "claim_content"], InputQualityGate.CreateDefault().CheckNames);
+    public void The_default_gate_has_the_six_checks_in_a_sensible_order() =>
+        Assert.Equal(["document_size", "file_signature", "pdf_integrity", "duplicate_file", "readable_text", "claim_content"], InputQualityGate.CreateDefault().CheckNames);
 
     // --- In the pipeline ---
 

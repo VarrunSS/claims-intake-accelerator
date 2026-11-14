@@ -6,18 +6,18 @@
 
   <ItemGroup>
     <!-- The NuGet id is PdfPig; the namespaces are still UglyToad.PdfPig. The old id UglyToad.PdfPig has no stable release. -->
-    <PackageReference Include="PdfPig" Version="0.1.16" />
-    <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
-    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
-    <PackageReference Include="Azure.Identity" Version="1.21.0" />
-    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
-    <PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
-    <PackageReference Include="Microsoft.Agents.AI" Version="1.28.0" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.13" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="Azure.AI.DocumentIntelligence" />
+    <PackageReference Include="Azure.AI.OpenAI" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Azure.Search.Documents" />
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,5 @@
-// One user-assigned managed identity shared by the Function App and both web apps in Milestone 1.
-// Splitting it per component is planned for Milestone 6 (see docs/adr/0003-managed-identity-no-keys.md).
+// A user-assigned managed identity. main.bicep creates one per component (the Function App, the review API and the legacy
+// mock) so that each holds only the roles it needs (INF-01, docs/adr/0003-managed-identity-no-keys.md).
 
 @description('Name of the identity.')
 param name string

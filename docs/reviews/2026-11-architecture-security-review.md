@@ -92,6 +92,36 @@ text and plan column, so the review still reads as it was written.
 | REL-05 | **Fixed in M6a** | Deterministic row keys, upserts, trail written before the claim. Test: a table that fails on the second append, then a redelivery. |
 | DOC-01 | **Partly fixed in M6a** | (g) grounded citations, (h) audit "no personal data", (i) README layout and test projects, (j) ADR 0002 identified reviewer. (a) to (f) remain. |
 
+## Status after Milestone 6b (infrastructure, observability, supply chain)
+
+Part B closed the findings below. "Offline" means proven by a test in this repository; "IaC" means written in Bicep or workflow YAML,
+compiled or linted locally (Bicep 0.49.2, actionlint 1.7.12) and never deployed or run on GitHub. Nothing ran on Azure. Findings the
+tables further down mark Doc stay documented.
+
+| ID | Status | Note |
+|---|---|---|
+| INF-01 | **Fixed in M6b (IaC)** | Three identities; roles scoped to the queue, container or account; Key Vault role and Cognitive Services User dropped; audit table on its own account; API is Receiver only. `scripts/role_matrix.py` asserts it (14 tests, mutation cases included). Roles being enough at run time is unproven. |
+| INF-02 | **Fixed in M6b (IaC)** | CI `iac` job: `az bicep build`, `build-params`, `lint` with rules in `bicepconfig.json`, role matrix, PSRule (`ps-rule.yaml`, non-blocking until first green run). Bicep compiled clean locally. The job itself never ran. |
+| INF-03 | **Documented** | [ADR 0011](../adr/0011-network.md): public endpoints, Service Bus Premium cost stated, private networking deferred. Key Vault role dropped. |
+| INF-04 | **Fixed in M6b (IaC)** | FTP and SCM basic auth off on the Function App too; HTTPS only, TLS 1.2 (and SCM), FTPS disabled on all three apps. |
+| REL-06 | **Fixed in M6b (IaC)** | Event Grid system topic and subscription (second deployment pass), retry policy, dead-letter container with the topic identity, alerts on Service Bus and Event Grid dead letters; `blobs_extension` exception in the ADR 0003 addendum. Never delivered an event. |
+| REL-07 | **Fixed in M6b (IaC)** | `requiresDuplicateDetection` with a 1 hour window on `claims-for-review`. |
+| REL-01 | **Documented** | ADR 0001 and the README say the store loses claims on restart; API pinned to one instance in Bicep. Durable store is Milestone 7. |
+| PII-03 | **Fixed in M6b (IaC + ADR)** | Inbox lifecycle policy (90 days, parameter); [ADR 0010](../adr/0010-retention.md) with assumed periods; dead-letter runbook. Audit and dead-letter purge are procedures, not automatic. |
+| OBS-01 | **Fixed in M6b (offline, Azure unverified)** | Azure Monitor distro in the API, Azure Monitor exporter and OpenTelemetry mode in the Function, optional in the watcher; managed identity; `DisableLocalAuth: true`; pipeline and `Azure.*` sources registered. Tests: exporter selection, credential type, connection string required. |
+| OBS-02 | **Fixed in M6b (offline)** | `traceparent`, `tracestate`, `Diagnostic-Id` in message properties; producer and consumer spans; claim id tag. Test: fake sender and receiver, same trace id and parent span; malformed and missing context. Smoke run: one trace id watcher to API over HTTP. |
+| OBS-03 | **Fixed in M6b (offline metrics, IaC alerts)** | Instruments: `claims.time_to_review_queue`, `claims.approved_stuck`, `claims.intake.dead_lettered`, `claims.route`, `claims.rate_limited` (`MeterListener` tests). Four query alerts plus two metric alerts and a workbook (latency, tokens, GBP per claim, failures) in Bicep. Alert firing never seen. |
+| OBS-04 | **Fixed in M6b (offline)** | `service-bus-consumer` readiness check: Unhealthy when stopped, Degraded after a recent error. Test through `/health/ready` (503 and 200). The optional table ping was not added. |
+| INP-01 | **Fixed in M6b (offline)** | 50-page limit, 30 s deadline, one PDF parse (text handed to the extractor). Tests with generated 200-page and 20,000-object PDFs, and a slow check. |
+| INP-02 | **Fixed in M6b (offline, sniffing)** | `file_signature` check; ZIP renamed `.pdf` refused with a reason. Defender for Storage stays Doc. |
+| INP-03 | **Fixed in M6b (offline)** | 64 KB default, 8 MB on intake only; 100 KB approve gives 413 problem details. |
+| API-01 | **Fixed in M6b (offline)** | Per-caller rate limits (decisions 20 a minute, intake 120, general 300); 429 with Retry-After and problem details. Smoke run showed the 21st approve gets 429. |
+| API-02 | **Fixed in M6b (offline)** | `AddOpenApi` with bearer scheme and `x-required-roles`; document committed at `docs/openapi/review-api.v1.json` and a drift test. |
+| SC-01 | **Fixed in M6b (IaC/workflow)** | SHA-pinned actions, per-job permissions, Dependabot, CodeQL, dependency review, `npm audit`, SBOM artifact, central package management with lock files and `--locked-mode`. `deploy.yml` not written (SC-02 stays Doc). Never ran on GitHub. |
+| SC-03 | **Fixed in M6b** | `scripts/check_no_prerelease.py` in CI; beta packages only in `evals/`. |
+| DOC-01 | **Fixed in M6b** | (a) Function publishing credentials, (b) no Azure Policy claim, (c) OIDC is a plan, (d) `claim-documents` queue removed and diagram redrawn, (e) type check wording, (f) "never silently dropped" caveats. With 6a, all of (a) to (j). |
+| AI-04, SC-02, REL-02 (claim-check), REL-08, AI-03 (Prompt Shields) | **Still open** | See README "Known limitations / next steps". |
+
 ## Findings
 
 Line numbers are at `3a6e309`. "M6" means fix in Milestone 6. "Doc" means document as a known limitation (README "not

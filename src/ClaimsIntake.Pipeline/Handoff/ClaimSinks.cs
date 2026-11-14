@@ -1,6 +1,8 @@
 using System.Net.Http.Json;
 using Azure.Messaging.ServiceBus;
+using System.Diagnostics;
 using ClaimsIntake.Domain.Intake;
+using ClaimsIntake.Domain.Telemetry;
 
 namespace ClaimsIntake.Pipeline.Handoff;
 
@@ -60,12 +62,21 @@ public sealed class ServiceBusClaimSink(ServiceBusSender sender) : IClaimSink
             Subject = Subject,
         };
 
+        // A producer span, and its W3C context in the message's application properties: the API's consumer continues this trace, so
+        // blob to review queue is one trace (OBS-02). The tags are ids only.
+        using var send = PipelineTelemetry.Source.StartActivity("claims.handoff.send", ActivityKind.Producer);
+        send?.SetTag(PipelineTelemetry.ClaimId, claim.ClaimId.ToString("D"));
+        send?.SetTag("messaging.system", "servicebus");
+        send?.SetTag("messaging.operation", "publish");
+        TraceContextCarrier.Inject(send ?? Activity.Current, message.ApplicationProperties);
+
         try
         {
             await sender.SendMessageAsync(message, cancellationToken);
         }
         catch (ServiceBusException ex)
         {
+            send?.SetStatus(ActivityStatusCode.Error, ex.Reason.ToString());
             throw new HandoffFailedException($"Service Bus refused the claim ({ex.Reason}).", ex);
         }
     }

@@ -1,4 +1,6 @@
 using ClaimsIntake.Api.Claims;
+using ClaimsIntake.Api.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using ClaimsIntake.Security.AspNetCore;
 
 namespace ClaimsIntake.Api.Intake;
@@ -7,7 +9,7 @@ public static class IntakeEndpoints
 {
     public const string EnabledSetting = "Intake:HttpEndpoint:Enabled";
 
-    /// <summary>The largest hand-off body accepted, in bytes. Enforced by the server limit set in Program.cs.</summary>
+    /// <summary>The largest hand-off body accepted, in bytes. The only route that is allowed more than the 64 KB default (INP-03).</summary>
     public const long MaxBodyBytes = 8 * 1024 * 1024;
 
     /// <summary>
@@ -20,7 +22,11 @@ public static class IntakeEndpoints
     {
         if (configuration.GetValue<bool>(EnabledSetting) && environment.IsDevelopment())
         {
-            app.MapPost("/intake/claims", Accept).RequireAuthorization(Policies.IntakeSubmit).WithTags("Intake");
+            app.MapPost("/intake/claims", Accept).RequireAuthorization(Policies.IntakeSubmit).WithTags("Intake")
+                .WithBodyLimit(MaxBodyBytes).RequireRateLimiting(RateLimiting.Intake)
+                .WithSummary("The local-mode hand-off from the inbox watcher (Development only). App-only token with Intake.Submit.")
+                .Produces<ClaimSummary>(StatusCodes.Status201Created).Produces<ClaimSummary>().ProducesValidationProblem()
+                .ProducesProblem(StatusCodes.Status413PayloadTooLarge).ProducesProblem(StatusCodes.Status429TooManyRequests);
         }
 
         return app;

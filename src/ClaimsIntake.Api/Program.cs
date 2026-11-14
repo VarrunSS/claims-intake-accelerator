@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using ClaimsIntake.Api;
 using ClaimsIntake.Api.Audit;
 using ClaimsIntake.Api.Claims;
+using ClaimsIntake.Api.Http;
 using ClaimsIntake.Api.Intake;
 using ClaimsIntake.Api.Legacy;
 using ClaimsIntake.Api.Telemetry;
@@ -18,7 +19,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddProblemDetails();
+// RFC 7807 problem details for every error the API produces: validation, 401 and 403 from authentication, 404, 413, 429 and 500.
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+{
+    // A correlation id for support, never a stack trace or a message from an exception.
+    context.ProblemDetails.Extensions["traceId"] = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? context.HttpContext.TraceIdentifier;
+});
+builder.Services.AddClaimsIntakeRateLimiting(builder.Configuration);
+builder.Services.AddClaimsIntakeOpenApi();
 builder.Services.AddSingleton(TimeProvider.System);
 
 // Authentication (ADR 0009): Microsoft Entra ID JWT bearer, with a fallback policy that requires a signed-in caller on every
@@ -53,12 +61,16 @@ builder.Services.AddSingleton<ClaimDecisionService>();
 
 // Hand-off from intake: HTTP in local mode (ADR 0005), Service Bus in Azure.
 builder.Services.AddSingleton<ClaimIntakeService>();
-if (!string.IsNullOrWhiteSpace(builder.Configuration["Intake:ServiceBus:FullyQualifiedNamespace"]))
+builder.Services.AddSingleton<ConsumerState>();
+builder.Services.AddSingleton<ClaimMessageProcessor>();
+var consumerEnabled = !string.IsNullOrWhiteSpace(builder.Configuration["Intake:ServiceBus:FullyQualifiedNamespace"]);
+if (consumerEnabled)
 {
     builder.Services.AddHostedService<ServiceBusClaimConsumer>();
 }
 
-builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = IntakeEndpoints.MaxBodyBytes);
+// The default request body limit is small (64 KB, INP-03). Only the intake route raises it, in UseBodyLimits.
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = BodyLimits.DefaultBytes);
 
 // The review UI is served by the Angular dev server and reaches the API through its proxy, so CORS is not
 // needed there. It is allowed for the dev server's origin in Development only, and never otherwise.
@@ -70,7 +82,14 @@ if (builder.Environment.IsDevelopment())
         .WithHeaders("Content-Type", "Authorization")));
 }
 
-builder.Services.AddHealthChecks().AddCheck<ClaimRepositoryHealthCheck>("claim-repository", tags: ["ready"]);
+var health = builder.Services.AddHealthChecks().AddCheck<ClaimRepositoryHealthCheck>("claim-repository", tags: ["ready"]);
+if (consumerEnabled)
+{
+    // Not ready when nothing is reading the review queue (OBS-04).
+    health.AddCheck<ConsumerHealthCheck>("service-bus-consumer", tags: ["ready"]);
+}
+
+builder.Services.AddSingleton<StuckApprovalsGauge>();
 builder.AddClaimsIntakeTelemetry();
 
 var app = builder.Build();
@@ -91,14 +110,25 @@ if (app.Environment.IsDevelopment())
     app.UseCors(LocalDevCors);
 }
 
+// Created once so the gauge of approvals stuck before the legacy write reports from the start (OBS-03).
+app.Services.GetRequiredService<StuckApprovalsGauge>();
+
+app.UseBodyLimits();
 app.UseAuthentication();
 app.UseAuthorization();
+// After authentication, so the limiter can tell callers apart by their object id.
+app.UseRateLimiter();
 
 // The probes are anonymous: they say only whether the process is up, and hold no claim data.
 app.MapHealthChecks("/health/live", new() { Predicate = _ => false }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new() { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
 app.MapClaimEndpoints();
 app.MapIntakeEndpoints(app.Configuration, app.Environment);
+if (app.Environment.IsDevelopment())
+{
+    // The API description is served in Development only. The committed copy is docs/openapi/review-api.v1.json.
+    app.MapOpenApi().AllowAnonymous();
+}
 
 app.Run();
 

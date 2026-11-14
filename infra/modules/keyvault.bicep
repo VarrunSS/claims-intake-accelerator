@@ -1,5 +1,6 @@
-// Key Vault using Azure RBAC rather than access policies. No secrets are stored in Milestone 1;
-// the vault is here so later milestones have a place for any secret that cannot be avoided.
+// Key Vault using Azure RBAC rather than access policies. It is empty and no identity has a role on it: there is no secret to
+// read. It is here so there is somewhere for a secret that cannot be avoided; grant Key Vault Secrets User to the one identity that
+// needs it, on that secret, when that day comes (INF-03).
 
 param name string
 param location string

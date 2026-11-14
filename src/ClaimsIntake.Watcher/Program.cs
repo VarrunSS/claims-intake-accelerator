@@ -1,3 +1,6 @@
+using Azure.Core;
+using Azure.Identity;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Extensions.Hosting;
 using ClaimsIntake.Domain.Telemetry;
 using ClaimsIntake.Pipeline;
@@ -12,12 +15,14 @@ builder.Services.AddClaimIntakePipeline(builder.Configuration);
 builder.Services.AddLocalInboxWatcher(builder.Configuration);
 
 var exporter = builder.Configuration["Telemetry:Exporter"]?.Trim().ToLowerInvariant() ?? "console";
-if (exporter is not ("console" or "otlp" or "none"))
+if (exporter is not ("console" or "otlp" or "azuremonitor" or "none"))
 {
-    throw new InvalidOperationException($"Telemetry:Exporter must be \"console\", \"otlp\" or \"none\", not \"{exporter}\".");
+    throw new InvalidOperationException($"Telemetry:Exporter must be \"console\", \"otlp\", \"azuremonitor\" or \"none\", not \"{exporter}\".");
 }
 
-builder.Services.AddOpenTelemetry()
+// The local watcher keeps the console and OTLP exporters. "azuremonitor" is there for a watcher run against a real workspace
+// (it signs in with DefaultAzureCredential, a developer sign-in); the Function exports with the same exporter in Azure.
+var telemetry = builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("claims-intake-watcher"))
     .WithTracing(tracing =>
     {
@@ -42,5 +47,21 @@ builder.Services.AddOpenTelemetry()
                 break;
         }
     });
+
+if (exporter == "azuremonitor")
+{
+    var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        throw new InvalidOperationException("Telemetry:Exporter is azuremonitor, which needs APPLICATIONINSIGHTS_CONNECTION_STRING.");
+    }
+
+    telemetry.UseAzureMonitorExporter(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.Credential = new DefaultAzureCredential();
+        options.DisableOfflineStorage = true;
+    });
+}
 
 await builder.Build().RunAsync();

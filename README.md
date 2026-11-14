@@ -12,7 +12,7 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestones 1 to 5 are done, and Milestone 6 part A (application security) is done. Part B (infrastructure, observability, supply chain) and Milestone 7 are not started. Everything runs locally with only the .NET
+Milestones 1 to 6 are done (Milestone 6 in two parts: A application security, B infrastructure, observability and supply chain). Milestone 7 is not started. Everything runs locally with only the .NET
 SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been run** (see below).
 
 | # | Milestone | Status |
@@ -22,7 +22,7 @@ SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been
 | 3 | RAG and legacy tools: policy wording search with citations, agent tools, coverage assessment, audit log | **Done locally. Azure path (AI Search, agent on a real model, Table Storage) compiled and unit-tested against fakes only, never run** |
 | 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, input-quality checks | **Done locally.** Local pipeline only, on 40 held-out synthetic claims (36 before Milestone 6a added four prompt-injection cases): field F1 0.969, route accuracy 87.5%, citations 100% grounded (by construction), 37.5% auto-routable. **No real-model number exists yet** |
 | 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | **Done as a harness, verified on scripted fakes only. Real models not run: no model has been measured, no model is recommended** |
-| 6 | Security and observability. **Part A done offline:** Entra ID auth and app roles, segregation of duties, decision audit, agent hardening, service-to-service tokens, PII scrubbing, threat model ([ADR 0009](docs/adr/0009-identity-roles-and-segregation-of-duties.md)). **Part B not started:** split identities, IaC in CI, Azure Monitor, supply chain | **Part A done, never run against a real tenant** |
+| 6 | Security and observability. **Part A:** Entra ID auth and app roles, segregation of duties, decision audit, agent hardening, service-to-service tokens, PII scrubbing, threat model ([ADR 0009](docs/adr/0009-identity-roles-and-segregation-of-duties.md)). **Part B:** one identity per component with a role matrix asserted in CI, Event Grid trigger and alerts in Bicep, Azure Monitor OpenTelemetry with one trace across Service Bus, metrics and a workbook, supply-chain hardening (SHA-pinned actions, lock files, CodeQL, SBOM), input limits, rate limiting, OpenAPI, retention and network ADRs ([0010](docs/adr/0010-retention.md), [0011](docs/adr/0011-network.md)) | **Done offline. Bicep compiled and linted locally with Bicep 0.49.2 and written for CI; nothing deployed, no real tenant, workflows never run on GitHub** |
 | 7 | Packaging: demo, runbook, final README and measured results | Not started |
 
 **The infrastructure has not been deployed or validated.** `azd`, `az` and the Functions Core Tools were not
@@ -174,7 +174,8 @@ for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test            # Domain 108, API 169, Pipeline 358, Evals 144 (779 in all)
+dotnet test            # Domain 116, API 208, Pipeline 377, Evals 144 (845 in all)
+python -m unittest discover -s scripts -p "test_*.py"   # role matrix (14; needs a Bicep CLI for 11 of them)
 dotnet run --project evals/ClaimsIntake.Evals -- --split test --thresholds evals/thresholds.json   # the evaluation, offline
 cd ui && npm ci && npm test && npm run build    # UI: 60 tests, run headless in jsdom
 ```
@@ -282,7 +283,7 @@ Coverage, as CI runs it: `dotnet test --collect:"XPlat Code Coverage"`.
 
 ## Security posture
 
-What is in place, and where each claim is tested or why it is not. Milestone 6 part A added the first six items.
+What is in place, and where each claim is tested or why it is not. Milestone 6 part A added the first six items; part B the next block.
 
 In place:
 
@@ -305,9 +306,30 @@ In place:
 - **PII scrubbing.** Spans and logs use the claim id, never the blob name, and HTTP spans carry route templates, not raw paths.
 - **A dev sign-in that cannot exist outside Development.** Five layers, each tested (ADR 0009 section 7). The local hand-off
   route exists only in Development and needs an app token.
-- **No keys or connection strings.** The Bicep gives one user-assigned managed identity scoped role
-  assignments, turns off shared-key access on storage and local auth on Service Bus, and puts only resource
-  names in application settings ([ADR 0003](docs/adr/0003-managed-identity-no-keys.md)).
+- **Per-app identities and a role matrix (Milestone 6b).** The Function, the API and the legacy mock each have their own
+  user-assigned identity. Roles are scoped to the queue, container or account: the Function is Sender on the review queue, the API
+  Receiver only, the legacy mock holds no Azure role, the audit table has an account of its own. `infra/role-matrix.expected.json` is the
+  contract and `scripts/role_matrix.py` (14 Python tests, including "add Sender to the API fails") asserts it against the compiled
+  ARM, in CI and locally. Publishing credentials are off, HTTPS only, TLS 1.2 and FTPS disabled on all three apps; the queue has
+  duplicate detection; the inbox has a lifecycle policy ([ADR 0010](docs/adr/0010-retention.md)); the Event Grid system topic and
+  subscription have dead-lettering and an alert, with the `blobs_extension` key exception recorded ([ADR 0003](docs/adr/0003-managed-identity-no-keys.md)).
+- **No keys or connection strings.** Shared-key access is off on storage, local auth on Service Bus, Search, Foundry, Log Analytics
+  and Application Insights, and application settings hold only resource names ([ADR 0003](docs/adr/0003-managed-identity-no-keys.md)).
+  The one exception is the Event Grid webhook key (ADR 0003 addendum). No Azure Policy enforces any of this; the templates do.
+- **Azure Monitor OpenTelemetry (Milestone 6b).** API, Function (OpenTelemetry mode) and optionally the watcher export with managed
+  identity; `DisableLocalAuth` is on. A W3C `traceparent` travels in the Service Bus message properties: a test proves the Function-side
+  and API-side spans share one trace id through a fake sender and receiver, and the local smoke run showed one trace id from the watcher
+  to the API. Metrics: time to review queue (histogram), claims stuck in Approved (gauge), dead letters, route distribution; token usage comes from the chat client's meter.
+  Readiness reflects the Service Bus consumer. Alerts and a workbook are in Bicep. **Ingestion, the alert queries and the workbook were never run against Azure.**
+- **Input limits and API hygiene (Milestone 6b).** 50-page limit, 30 s processing deadline and a single PDF parse; magic-byte
+  checks against the claimed type; a 64 KB default request body limit (8 MB on the intake route only); rate limits per caller with
+  429 and RFC 7807 problem details everywhere; an OpenAPI document with the bearer scheme and required roles, committed in
+  `docs/openapi/review-api.v1.json` and checked for drift by a test.
+- **Supply chain (Milestone 6b).** Actions pinned by SHA, least-privilege permissions per job, Dependabot, CodeQL, dependency review,
+  `npm audit`, an SBOM artifact, central package management with lock files restored `--locked-mode`, no prerelease package in `src/`
+  (`Azure.AI.Inference` beta and its Extensions.AI adapter stay in `evals/` only, on purpose). Secret scanning and push protection are repository settings: turn them on, they cannot be seen from the code.
+- **IaC in CI.** `az bicep build`, `build-params`, `lint` (rules in `bicepconfig.json`), the role matrix and PSRule for Azure (`ps-rule.yaml`,
+  non-blocking until it has run once).
 - **Human approval for writes.** The agent can only propose. `propose_claim` records a proposal in memory; the
   tools are given no writer, so they cannot write (a test checks this) ([ADR 0002](docs/adr/0002-human-approval-for-writes.md)).
 - **UK South only.** The Bicep `location` parameter allows only `uksouth`.
@@ -318,21 +340,23 @@ In place:
 - **Grounded citations.** A finding can only cite a clause the search returned in that run **from this claim's wording**, and
   the clause text shown is the wording's ([ADR 0006](docs/adr/0006-policy-wording-rag.md)). Whether the clause means what the
   model says is for the handler.
-- **Input handling.** Request bodies are validated and length-limited. Blob names are cleaned before logging.
+- **Input handling.** Request bodies are validated and length-limited. Blob names are cleaned before logging. (Milestone 6b added the limits above.)
 - **Defaults on the hosts.** HTTPS only, TLS 1.2 minimum, FTP off, Key Vault with RBAC, soft delete and purge protection,
-  storage with no public blob access. Basic publishing credentials are off on the two web apps but **not yet on the Function App** (INF-04).
+  storage with no public blob access. Basic publishing credentials are off on all three apps (INF-04).
 
-Not in place (see the [review](docs/reviews/2026-11-architecture-security-review.md) and the [threat model](docs/threat-model.md)):
+## Known limitations / next steps
 
-- **Never run against a real Entra ID tenant.** The app registrations in `infra/entra/` have never been applied.
-- **The infrastructure still has one identity shared by all three apps**, a public host for the API and the legacy mock, and
-  no private endpoints (part B: INF-01, INF-03).
-- **The review store is in memory**: a restart loses claims awaiting review (REL-01, Milestone 7).
-- Hidden text in a PDF is not detected (AI-04). Azure AI Content Safety Prompt Shields is not integrated (a no-op seam exists).
-- No rate limiting, request size limit per route, PDF page limit or file-type sniffing (item 10). No retention policy (PII-03).
-- Application Insights still accepts connection-string ingestion, and Azure Monitor export is not wired (part B).
-- The Event Grid trigger is not in the Bicep, so a deployed Function would never fire (REL-06, part B).
-- Nothing has been deployed, so none of the Azure configuration has been tested.
+Left on purpose, documented, and not hidden. Each has a finding ID in the [review](docs/reviews/2026-11-architecture-security-review.md).
+
+- **A durable review store (REL-01, Milestone 7).** The store is in memory: an API restart loses claims awaiting review, and the API is
+  pinned to one instance. A Table Storage or Cosmos repository with ETags is next.
+- **The claim-check pattern (REL-02).** Large documents are cut to under 200 KB with a blocking issue; the document goes in blob storage and a reference on the queue is the proper fix.
+- **Private networking (INF-03).** Public endpoints with Entra-only authentication; private endpoints need Service Bus Premium (about GBP 550 a month). [ADR 0011](docs/adr/0011-network.md).
+- **Prompt Shields (AI-03).** The `IPromptAttackDetector` seam is a no-op; Azure AI Content Safety was never integrated or run.
+- **Defender for Storage malware scanning (INP-02).** The magic-byte check is a sniff, not a scan.
+- **Hidden-text detection (AI-04).** The handler sees extracted text, which can contain text a person cannot see in the rendered page.
+- **A second approver above a financial limit (SEC-03, discovery Q6).** The seam exists; the rule awaits an answer.
+- Also open: a way back from a legacy refusal (REL-08), purge of audit records and dead letters ([ADR 0010](docs/adr/0010-retention.md)), the deployment workflow with OIDC (SC-02: none exists), a Document Intelligence and Foundry model in the default deployment.
 
 ## What was not verified
 
@@ -343,7 +367,18 @@ Not in place (see the [review](docs/reviews/2026-11-architecture-security-review
   not been tried with a real model: how well a model quotes verbatim from JSON-escaped text is unknown. The eval
   `injection` cases measure the offline rules assessor, not a model. Prompt Shields was never run.
 
-- The Bicep has not been compiled with `az bicep build`, checked with `what-if`, or deployed. In particular,
+- **Milestone 6b.** The Bicep (`infra/`) compiles and lints clean with the standalone Bicep CLI 0.49.2 (checksum verified against the
+  GitHub release digest), and the role-matrix assertion and its tests pass against the compiled ARM. `az bicep build/lint` and PSRule for
+  Azure **will first run in CI**; PSRule was never run (suppressions in `ps-rule.yaml` are from reading the rules, so some may be wrong), the
+  workflows were checked with actionlint 1.7.12 and never ran on GitHub, and `dependabot.yml` and `ps-rule.yaml` were only checked by eye (no YAML parser was available). Nothing was deployed or run
+  through `what-if`. Unconfirmed on Azure: that the roles are enough at run time (the blob trigger with Blob Data Owner on the `inbox`
+  container only, Flex host storage), the Event Grid webhook with the `blobs_extension` key and the two-pass deployment, dead-lettering
+  with the topic identity, Azure Monitor ingestion with Entra ID, the Functions host in OpenTelemetry mode with the pipeline source, that
+  Azure SDK Service Bus spans do not duplicate the explicit `traceparent`, the alert queries (they assume how counters and span tags land in
+  `customMetrics` and `requests`), the workbook, the lifecycle policy, the `use-recent-api-versions` rule being off, and `NuGetAudit` behaviour on the
+  GitHub runner. The CI jobs `iac`, `sbom`, `dependency-review` and CodeQL have never run. Rate limits are in memory, per instance.
+  The local smoke run proved one trace id from the watcher to the API over HTTP; the Service Bus propagation is proven with fakes only.
+- The Bicep before Milestone 6b had never been through a compiler; it now has, but never `what-if` or a deployment. In particular,
   these are unconfirmed: .NET 10 on Flex Consumption (`dotnet-isolated`, `10.0`), `DOTNETCORE|10.0` on
   Linux App Service in UK South, the `azd` `host: function` setting for a Flex plan, the Function host
   settings for identity-based blob trigger, Service Bus and host storage connections, and azd deployment with
@@ -363,7 +398,7 @@ Not in place (see the [review](docs/reviews/2026-11-architecture-security-review
   browser.
 - The Function App has not been started, because the Functions Core Tools are not installed. The project
   builds, the function is unit-tested by calling it directly with fakes, and the Event Grid blob trigger is only
-  compiled, not run. The pipeline's spans are not yet wired to Application Insights in the Function App.
+  compiled, not run. The Function's OpenTelemetry wiring (Milestone 6b) is compiled only.
 - **Milestone 2 Azure paths, compiled and tested only against fakes, never run:**
   `AzureDocumentIntelligenceExtractor` (its `DocumentIntelligenceClient` adapter is not even unit-tested),
   `FoundryLlmClaimExtractor` against a real model (the JSON schema is hand-written and not checked against a live
@@ -379,15 +414,15 @@ Not in place (see the [review](docs/reviews/2026-11-architecture-security-review
 ## Repository layout
 
 ```
-.github/workflows/ci.yml   build, test with coverage, UI, evaluation gate
+.github/workflows/ci.yml   build, test, UI, evaluation gate, IaC (Bicep, role matrix, PSRule), SBOM, dependency review; codeql.yml; ../dependabot.yml
 docs/                      discovery, success metrics, architecture, ADRs
-infra/                     Bicep (main.bicep and modules), azd parameters
+infra/                     Bicep (main.bicep and modules), role matrix, alerts, workbook, azd parameters
 src/                       Domain, Security, Security.AspNetCore, Pipeline, Api, Legacy, Functions, Watcher, Ingestion
 evals/                     evaluation harness, dataset generator and 58 synthetic cases
 infra/entra/               Entra app registration manifests (never applied)
 ui/                        Angular review UI
 samples/                   synthetic claim documents and their generator; policy-wordings/ holds the wordings
-scripts/                   run-local.ps1 starts everything locally
+scripts/                   run-local.ps1 starts everything locally (-Stop cleans up); role_matrix.py and check_no_prerelease.py (CI)
 tests/                     Domain.Tests, Pipeline.Tests, Api.Tests (API and legacy), Evals.Tests
 azure.yaml                 azd project definition
 ```

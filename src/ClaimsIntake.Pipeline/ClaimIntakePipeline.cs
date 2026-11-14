@@ -36,8 +36,10 @@ public sealed partial class ClaimIntakePipeline(
     ILogger<ClaimIntakePipeline> logger,
     AssessmentRunner? assessment = null,
     InputQualityGate? quality = null,
-    IPromptAttackDetector? detector = null)
+    IPromptAttackDetector? detector = null,
+    TimeSpan? processingDeadline = null)
 {
+    private readonly TimeSpan _deadline = processingDeadline ?? new InputQualityOptions().ProcessingDeadline;
     private readonly InputQualityGate _quality = quality ?? InputQualityGate.CreateDefault();
 
     /// <summary>Largest document the quality gate accepts by default, in bytes. A larger one is handed to a person.</summary>
@@ -60,31 +62,50 @@ public sealed partial class ClaimIntakePipeline(
         {
             var receivedAt = document.ReceivedAt ?? time.GetUtcNow();
 
-            var documentFinding = await RunAsync(PipelineTelemetry.StageInputQuality, id,
-                () => _quality.RunAsync(QualityStage.Document, new InputQualityContext(document, null), cancellationToken), _ => null);
-            if (documentFinding is not null)
+            // The checks and the text extraction share one processing deadline (INP-01). A document that takes longer is handed to a
+            // person with a finding. The host's own cancellation (a shutdown) is not a deadline and still propagates.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (_deadline > TimeSpan.Zero)
             {
-                return await RejectAsync(document, id, receivedAt, documentFinding, [], process, cancellationToken);
+                deadline.CancelAfter(_deadline);
             }
+
+            var read = deadline.Token;
 
             DocumentText text;
             try
             {
-                text = await RunAsync(PipelineTelemetry.StageExtractText, id,
-                    () => textExtractor.ExtractAsync(document, cancellationToken), _ => null);
-            }
-            catch (UnreadableDocumentException ex) when (ex.Kind == UnreadableKind.NoText)
-            {
-                var finding = new QualityFinding(IssueCode.UnreadableDocument, "text_extraction",
-                    "No text could be read from the document. It may be a scan or a photograph; a person needs to read it.");
-                return await RejectAsync(document, id, receivedAt, finding, [], process, cancellationToken);
-            }
+                var documentFinding = await RunAsync(PipelineTelemetry.StageInputQuality, id,
+                    () => _quality.RunAsync(QualityStage.Document, new InputQualityContext(document, null), read), _ => null);
+                if (documentFinding is not null)
+                {
+                    return await RejectAsync(document, id, receivedAt, documentFinding, [], process, cancellationToken);
+                }
 
-            var textFinding = await RunAsync(PipelineTelemetry.StageInputQualityText, id,
-                () => _quality.RunAsync(QualityStage.Text, new InputQualityContext(document, text), cancellationToken), _ => null);
-            if (textFinding is not null)
+                try
+                {
+                    text = await RunAsync(PipelineTelemetry.StageExtractText, id,
+                        () => textExtractor.ExtractAsync(document, read), _ => null);
+                }
+                catch (UnreadableDocumentException ex) when (ex.Kind == UnreadableKind.NoText)
+                {
+                    var finding = new QualityFinding(IssueCode.UnreadableDocument, "text_extraction",
+                        "No text could be read from the document. It may be a scan or a photograph; a person needs to read it.");
+                    return await RejectAsync(document, id, receivedAt, finding, [], process, cancellationToken);
+                }
+
+                var textFinding = await RunAsync(PipelineTelemetry.StageInputQualityText, id,
+                    () => _quality.RunAsync(QualityStage.Text, new InputQualityContext(document, text), read), _ => null);
+                if (textFinding is not null)
+                {
+                    return await RejectAsync(document, id, receivedAt, textFinding, text.Pages, process, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
             {
-                return await RejectAsync(document, id, receivedAt, textFinding, text.Pages, process, cancellationToken);
+                var finding = new QualityFinding(IssueCode.DocumentTooLarge, "processing_deadline",
+                    $"Reading the document took longer than {_deadline.TotalSeconds:F0} seconds, so it was not processed. A person needs to read it.");
+                return await RejectAsync(document, id, receivedAt, finding, [], process, cancellationToken);
             }
 
             var fields = await RunAsync(PipelineTelemetry.StageExtractFields, id,

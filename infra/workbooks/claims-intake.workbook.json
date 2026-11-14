@@ -1,0 +1,204 @@
+{
+  "version": "Notebook/1.0",
+  "fallbackResourceIds": [
+    "__APPLICATION_INSIGHTS_ID__"
+  ],
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Claims intake: latency, tokens, cost and failures\nSuccess metrics M5 (time to the review queue) and the cost per claim, from the pipeline's and the API's OpenTelemetry data. Nothing here holds claim text or personal data: spans and metrics carry claim ids, stages, counts and durations only. The queries were written against the telemetry names in the code and have not been run against real Azure data."
+      },
+      "name": "intro"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "a1b2c3d4-0001-4000-8000-000000000001",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 }
+              ]
+            }
+          },
+          {
+            "id": "a1b2c3d4-0002-4000-8000-000000000002",
+            "version": "KqlParameterItem/1.0",
+            "name": "InputPricePerMillion",
+            "label": "Input price, GBP per 1M tokens",
+            "type": 1,
+            "isRequired": true,
+            "value": "2.00",
+            "description": "An assumption: set it to the price of the deployed model."
+          },
+          {
+            "id": "a1b2c3d4-0003-4000-8000-000000000003",
+            "version": "KqlParameterItem/1.0",
+            "name": "OutputPricePerMillion",
+            "label": "Output price, GBP per 1M tokens",
+            "type": 1,
+            "isRequired": true,
+            "value": "8.00",
+            "description": "An assumption: set it to the price of the deployed model."
+          }
+        ]
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Latency\nSeconds from a document arriving to its claim waiting for a handler. Target: p95 under 90 s (M5). Taken from the `claims.intake` consumer span's `claims.time_to_review_queue_s` tag, because a histogram's percentiles cannot be recomputed from its summary in Application Insights."
+      },
+      "name": "latency-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where name == \"claims.intake\"\n| extend seconds = todouble(customDimensions[\"claims.time_to_review_queue_s\"])\n| where isnotnull(seconds)\n| summarize p50 = percentile(seconds, 50), p95 = percentile(seconds, 95), p99 = percentile(seconds, 99), claims = count() by bin(timestamp, 1h)\n| order by timestamp asc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "latency-time-to-queue"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\n| where name startswith \"intake.\"\n| summarize p50 = percentile(duration, 50), p95 = percentile(duration, 95), calls = count() by stage = name\n| order by p95 desc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "latency-by-stage"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Model tokens and cost\nThe chat client emits the `gen_ai.client.token.usage` histogram on the pipeline's meter. Cost is tokens times the prices above, so it is an estimate for the deployed model, not an invoice."
+      },
+      "name": "tokens-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\n| where name == \"gen_ai.client.token.usage\"\n| extend tokenType = tostring(customDimensions[\"gen_ai.token.type\"])\n| summarize tokens = sum(valueSum) by tokenType, bin(timestamp, 1d)\n| order by timestamp asc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      },
+      "name": "tokens-per-day"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let inputPrice = todouble(\"{InputPricePerMillion}\") / 1000000.0;\nlet outputPrice = todouble(\"{OutputPricePerMillion}\") / 1000000.0;\nlet tokens = customMetrics\n| where name == \"gen_ai.client.token.usage\"\n| extend tokenType = tostring(customDimensions[\"gen_ai.token.type\"])\n| summarize inputTokens = sumif(valueSum, tokenType == \"input\"), outputTokens = sumif(valueSum, tokenType == \"output\");\nlet claims = toscalar(customMetrics | where name == \"claims.intake\" | extend outcome = tostring(customDimensions[\"outcome\"]) | where outcome == \"accepted\" | summarize sum(value));\ntokens\n| extend costGbp = inputTokens * inputPrice + outputTokens * outputPrice, claims = claims\n| extend gbpPerClaim = iff(claims > 0, costGbp / claims, real(null))\n| project inputTokens, outputTokens, costGbp, claims, gbpPerClaim",
+        "size": 4,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "cost-per-claim"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Route and review\nHow claims were routed by the assessor, and what is waiting too long."
+      },
+      "name": "routes-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\n| where name == \"claims.route\"\n| extend route = tostring(customDimensions[\"route\"])\n| summarize claims = sum(value) by route, bin(timestamp, 1d)\n| order by timestamp asc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      },
+      "name": "route-distribution"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\n| where name == \"claims.approved_stuck\"\n| summarize stuck = max(value) by bin(timestamp, 15m)\n| order by timestamp asc",
+        "size": 1,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "approvals-stuck"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Failures\nFailed blob-triggered invocations, messages dead-lettered by the consumer, and legacy write outcomes."
+      },
+      "name": "failures-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where name == \"ClaimDocumentReceived\"\n| summarize total = count(), failed = countif(success == false) by bin(timestamp, 1h)\n| extend failureRatePercent = iff(total > 0, failed * 100.0 / total, real(null))\n| project timestamp, failureRatePercent, failed, total\n| order by timestamp asc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      },
+      "name": "function-failure-rate"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\n| where name in (\"claims.legacy_submissions\", \"claims.intake.dead_lettered\")\n| extend outcome = coalesce(tostring(customDimensions[\"outcome\"]), tostring(customDimensions[\"reason\"]))\n| summarize count_ = sum(value) by name, outcome, bin(timestamp, 1d)\n| order by timestamp asc",
+        "size": 0,
+        "timeContext": { "durationMs": 0 },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "legacy-and-dead-letters"
+    }
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

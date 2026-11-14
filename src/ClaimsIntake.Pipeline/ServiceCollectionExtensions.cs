@@ -185,7 +185,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp => new ClaimIntakePipeline(
             sp.GetRequiredService<IDocumentTextExtractor>(), sp.GetRequiredService<IClaimExtractor>(), sp.GetRequiredService<IPolicyLookup>(),
             sp.GetRequiredService<IClaimSink>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>(), sp.GetRequiredService<InputQualityGate>(), sp.GetService<IPromptAttackDetector>()));
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>(), sp.GetRequiredService<InputQualityGate>(), sp.GetService<IPromptAttackDetector>(), quality.ProcessingDeadline));
         return services;
     }
 

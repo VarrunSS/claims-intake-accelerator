@@ -1,0 +1,40 @@
+# Dependabot (SC-01): weekly pull requests for NuGet (central package management reads Directory.Packages.props and updates the lock
+# files), npm (the review UI) and the GitHub Actions pinned by SHA in .github/workflows. Updates are grouped, so a week's minor and patch
+# updates arrive as one pull request per ecosystem. Security updates come separately and at once. A major version is never grouped.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      nuget-minor-and-patch:
+        update-types: [minor, patch]
+    # Evaluation tooling uses prerelease packages on purpose (Directory.Packages.props, "Evals"). Do not let a bot move them.
+    ignore:
+      - dependency-name: Azure.AI.Inference
+      - dependency-name: Microsoft.Extensions.AI.AzureAIInference
+    labels: [dependencies, nuget]
+
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, npm]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns: ['*']
+    labels: [dependencies, github-actions]

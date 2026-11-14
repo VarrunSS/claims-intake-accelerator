@@ -1,8 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, Injector, computed, inject, signal } from '@angular/core';
-import { MsalService } from '@azure/msal-angular';
 import { firstValueFrom } from 'rxjs';
 import { RUNTIME_CONFIG, isConfigured } from './config';
+import { MSAL_CLIENT } from './msal-client';
 
 export type AuthMode = 'msal' | 'dev';
 export type DevPersona = 'dev-handler' | 'dev-senior';
@@ -23,7 +23,7 @@ export interface Me {
 export class AuthService {
   private readonly config = inject(RUNTIME_CONFIG);
   private readonly injector = inject(Injector);
-  private readonly msal = isConfigured(this.config) ? this.injector.get(MsalService) : null;
+  private readonly msal = isConfigured(this.config) ? this.injector.get(MSAL_CLIENT) : null;
 
   readonly mode: AuthMode = this.msal ? 'msal' : 'dev';
 

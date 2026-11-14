@@ -25,7 +25,7 @@ public sealed record IntakeResult(IntakeOutcome Outcome, Claim? Claim = null, IR
 /// Accepts proposed claims from the intake pipeline, whether they arrive over HTTP (local mode) or from
 /// Service Bus (Azure). Both routes end here, so both behave the same.
 /// </summary>
-public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog audit, ILogger<ClaimIntakeService> logger)
+public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog audit, ILogger<ClaimIntakeService> logger, TimeProvider? time = null)
 {
     public async Task<IntakeResult> AcceptAsync(ProposedClaim proposed, CancellationToken cancellationToken)
     {
@@ -70,6 +70,12 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
         }
 
         ApiMetrics.IntakeClaims.Add(1, new KeyValuePair<string, object?>("outcome", "accepted"));
+        ApiMetrics.RouteDistribution.Add(1, new KeyValuePair<string, object?>("route", claim.Assessment?.Route.ToString() ?? "none"));
+        // Success metric M5: received to waiting in the review queue. Never negative, even if the sender's clock is ahead.
+        var waited = ((time ?? TimeProvider.System).GetUtcNow() - proposed.ReceivedAt).TotalSeconds;
+        ApiMetrics.TimeToReviewQueue.Record(Math.Max(0, waited), new KeyValuePair<string, object?>("size", ApiMetrics.SizeBand(proposed.SourcePages.Count)));
+        // Also on the consumer span, because Application Insights cannot give a percentile from a histogram's summary but can from spans (the p95 alert).
+        System.Diagnostics.Activity.Current?.SetTag("claims.time_to_review_queue_s", Math.Round(Math.Max(0, waited), 1));
 
         // The claim id, never the document id: a blob name can be a person's name (PII-01).
         logger.LogInformation("Claim {ClaimId} accepted: {Errors} errors, {Warnings} warnings",

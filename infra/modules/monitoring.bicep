@@ -1,17 +1,19 @@
 // Log Analytics workspace and a workspace-based Application Insights component.
+// Ingestion needs Entra ID (DisableLocalAuth), so every exporter signs in with its managed identity and holds Monitoring Metrics
+// Publisher on this component (modules/roles.bicep). The instrumentation key in the connection string alone no longer works.
 
 param logAnalyticsName string
 param applicationInsightsName string
 param location string
 param tags object
 
-@description('Days to keep logs. Logs must not hold claim content or personal data (see docs/00-discovery.md).')
+@description('Days to keep logs and telemetry. Telemetry must not hold claim content or personal data (docs/adr/0010-retention.md).')
 @minValue(30)
 @maxValue(730)
 param retentionInDays int = 30
 
-@description('Set to true once every exporter signs in with Entra ID (Milestone 6). Until then ingestion needs the connection string.')
-param disableLocalAuth bool = false
+@description('Reject ingestion that is not signed in with Entra ID. Leave true: the Function, the API and the watcher all use a credential.')
+param disableLocalAuth bool = true
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: logAnalyticsName
@@ -36,6 +38,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   properties: {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalytics.id
+    RetentionInDays: retentionInDays
     DisableLocalAuth: disableLocalAuth
   }
 }

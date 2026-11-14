@@ -1,0 +1,1350 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Claims Intake review API",
+    "description": "The review queue for proposed claims: list, read, approve and reject. Every route needs a Microsoft Entra ID access token (bearer). People need the ClaimsHandler or SeniorHandler app role; a claim routed to senior review can only be approved by a SeniorHandler. /claims/history and /intake/claims take app-only tokens with their own roles. The health probes are anonymous. Errors are RFC 7807 problem details.",
+    "version": "v1"
+  },
+  "paths": {
+    "/me": {
+      "get": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "Who the token says the caller is, and what roles it carries.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    },
+    "/claims/history": {
+      "get": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "Claims on a policy that could still be duplicates. App-only: the intake pipeline\u0027s duplicate check.",
+        "description": "Requires one of the app roles: Intake.ReadHistory.",
+        "parameters": [
+          {
+            "name": "policyNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimHistoryItem"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "Intake.ReadHistory"
+        ]
+      }
+    },
+    "/intake/claims": {
+      "post": {
+        "tags": [
+          "Intake"
+        ],
+        "summary": "The local-mode hand-off from the inbox watcher (Development only). App-only token with Intake.Submit.",
+        "description": "Requires one of the app roles: Intake.Submit.",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimSummary"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "Intake.Submit"
+        ]
+      }
+    },
+    "/claims": {
+      "get": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "Lists claims, oldest first. status is NeedsReview (default), Approved, Rejected, Submitted or all.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    },
+    "/claims/{id}": {
+      "get": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "One claim with its fields, issues, assessment and source text.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    },
+    "/claims/{id}/audit": {
+      "get": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "The tool calls made while the claim was assessed, oldest first.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    },
+    "/claims/{id}/approve": {
+      "post": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "Approves a claim and writes it to the legacy claims system. A claim routed to senior review needs the SeniorHandler role.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ApproveRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    },
+    "/claims/{id}/reject": {
+      "post": {
+        "tags": [
+          "Claims"
+        ],
+        "summary": "Rejects a claim. The reason is required.",
+        "description": "Requires one of the app roles: ClaimsHandler, SeniorHandler.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RejectRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-required-roles": [
+          "ClaimsHandler",
+          "SeniorHandler"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApproveRequest": {
+        "type": "object",
+        "properties": {
+          "reviewer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AuditEntryDto": {
+        "required": [
+          "tool",
+          "arguments",
+          "resultSummary",
+          "durationMs",
+          "timestamp",
+          "succeeded"
+        ],
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "resultSummary": {
+            "type": "string"
+          },
+          "durationMs": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "succeeded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClaimAssessment": {
+        "required": [
+          "assessor",
+          "findings",
+          "route",
+          "routeReason",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "assessor": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoverageFinding"
+            }
+          },
+          "route": {
+            "$ref": "#/components/schemas/ReviewRoute"
+          },
+          "routeReason": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ClaimDetail": {
+        "required": [
+          "id",
+          "sourceDocumentId",
+          "status",
+          "receivedAt",
+          "fields",
+          "issues",
+          "sourcePages",
+          "decidedBy",
+          "decidedByName",
+          "decidedAt",
+          "rejectionReason",
+          "legacyReference"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceDocumentId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldDto"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueDto"
+            }
+          },
+          "sourcePages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedByName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rejectionReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legacyReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "assessment": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ClaimAssessment"
+              }
+            ]
+          }
+        }
+      },
+      "ClaimHistoryItem": {
+        "required": [
+          "id",
+          "policyNumber",
+          "lossDate",
+          "amountGbp",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lossDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "amountGbp": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          }
+        }
+      },
+      "ClaimStatus": {
+        "enum": [
+          "NeedsReview",
+          "Approved",
+          "Rejected",
+          "Submitted"
+        ]
+      },
+      "ClaimSummary": {
+        "required": [
+          "id",
+          "sourceDocumentId",
+          "policyNumber",
+          "claimantName",
+          "status",
+          "receivedAt",
+          "errorCount",
+          "warningCount",
+          "minConfidence",
+          "legacyReference"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceDocumentId": {
+            "type": "string"
+          },
+          "policyNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "claimantName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClaimStatus"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "errorCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "warningCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "minConfidence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "legacyReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ClauseCitation": {
+        "required": [
+          "wordingId",
+          "clauseRef",
+          "heading",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "wordingId": {
+            "type": "string"
+          },
+          "clauseRef": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "CoverageFinding": {
+        "required": [
+          "kind",
+          "summary",
+          "citations"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FindingKind"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClauseCitation"
+            }
+          },
+          "relatedClaimRef": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "FieldDto": {
+        "required": [
+          "name",
+          "value",
+          "confidence",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "confidence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d\u002B)?(?:[eE][\u002B-]?\\d\u002B)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SourceSpan"
+              }
+            ]
+          }
+        }
+      },
+      "FindingKind": {
+        "enum": [
+          "CoverageClause",
+          "PossibleExclusion",
+          "NotificationBreach",
+          "PossibleDuplicate"
+        ]
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "IssueCode": {
+        "enum": [
+          "MissingPolicyNumber",
+          "UnknownPolicy",
+          "MissingLossDate",
+          "UnreadableLossDate",
+          "LossDateInFuture",
+          "LossDateOutsidePolicyPeriod",
+          "LowConfidence",
+          "InvalidAmount",
+          "UnreadableDocument",
+          "NotAClaim",
+          "DocumentTooLarge",
+          "ProtectedOrCorruptDocument",
+          "DuplicateDocument"
+        ]
+      },
+      "IssueDto": {
+        "required": [
+          "code",
+          "severity",
+          "field",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/IssueCode"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/IssueSeverity"
+          },
+          "field": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "IssueSeverity": {
+        "enum": [
+          "Warning",
+          "Error"
+        ]
+      },
+      "MeDto": {
+        "required": [
+          "id",
+          "name",
+          "roles",
+          "isSenior"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isSenior": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RejectRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reviewer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ReviewRoute": {
+        "enum": [
+          "StraightToHandler",
+          "SeniorReview"
+        ]
+      },
+      "SourceSpan": {
+        "required": [
+          "documentId",
+          "page",
+          "offset",
+          "length"
+        ],
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "offset": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "length": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "A Microsoft Entra ID access token for this API. Roles come from the token\u0027s roles claim.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Claims"
+    },
+    {
+      "name": "Intake"
+    }
+  ]
+}

@@ -4,8 +4,9 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
+# No job gets more than it asks for below: the default token can only read the repository (SC-01). Every action is pinned to a full commit
+# SHA, with its version in the comment; Dependabot (.github/dependabot.yml) proposes the updates.
+permissions: {}
 
 # A newer push to the same branch or pull request replaces the run still in progress.
 concurrency:
@@ -16,20 +17,31 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore
+      # Locked mode: every project has a committed packages.lock.json (Directory.Packages.props turns them on), and restore fails if a
+      # dependency would resolve to anything else. A change to a version is a reviewed change to those files.
+      - name: Restore (locked)
+        run: dotnet restore --locked-mode
 
-      # Warnings are errors (Directory.Build.props), so a clean build is part of the check.
+      # Warnings are errors (Directory.Build.props), so a clean build is part of the check. NuGet audit (known vulnerabilities, direct and
+      # transitive) is on at every level in Directory.Packages.props, so a vulnerable package is a build error too.
       - name: Build
         run: dotnet build -c Release --no-restore
+
+      # SC-03: prerelease packages are allowed in evals/ only, never in anything that ships.
+      - name: No prerelease packages in src
+        run: python3 scripts/check_no_prerelease.py
 
       - name: Test with coverage
         run: >
@@ -51,7 +63,7 @@ jobs:
 
       - name: Upload test results and coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-results
           path: TestResults
@@ -61,20 +73,28 @@ jobs:
   ui:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ui
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
       - run: npm ci
+      # SC-01: fail on a known high or critical vulnerability in what the UI ships or builds with.
+      - name: npm audit
+        run: npm audit --audit-level=high
       - run: npm test
+      # The production build has a 500 kB budget for the initial bundle (warning) and 1 MB (error). MSAL is a lazy chunk.
       - run: npm run build
 
   # The evaluation gate (Milestone 4). It runs the held-out test split of evals/dataset through the local pipeline (heuristic
@@ -84,18 +104,25 @@ jobs:
     needs: build-test
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore --locked-mode
 
       - name: Run the evaluation on the test split
         id: eval
         run: |
           set +e
-          dotnet run -c Release --project evals/ClaimsIntake.Evals -- --split test --run-id ci --out eval-results --thresholds evals/thresholds.json
+          dotnet run -c Release --no-restore --project evals/ClaimsIntake.Evals -- --split test --run-id ci --out eval-results --thresholds evals/thresholds.json
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
           exit 0
 
@@ -110,7 +137,7 @@ jobs:
 
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: eval-report
           path: |
@@ -124,3 +151,102 @@ jobs:
         run: |
           echo "The evaluation exited with code ${{ steps.eval.outputs.exit_code }}: 1 means a metric is below evals/thresholds.json, 2 means it could not run."
           exit 1
+
+  # Infrastructure as code (INF-02). The Azure CLI on the GitHub runner includes Bicep, and none of this needs an Azure sign-in.
+  # Written and checked locally with the standalone Bicep CLI; this job is the first time it runs under GitHub Actions.
+  iac:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Compiles infra/main.bicep and every module to ARM JSON. A type error, a bad reference or an unknown property fails here.
+      - name: Bicep build
+        run: az bicep build --file infra/main.bicep --outdir "$RUNNER_TEMP/arm"
+
+      # The CI parameter file must still match the template's parameters.
+      - name: Bicep build-params
+        run: az bicep build-params --file infra/main.ci.bicepparam --outfile "$RUNNER_TEMP/arm/main.parameters.json"
+
+      # Lint with the rules in bicepconfig.json (most are errors). `az bicep lint` exits non-zero on an error.
+      - name: Bicep lint
+        run: az bicep lint --file infra/main.bicep
+
+      # The role matrix: each identity has exactly the roles in infra/role-matrix.expected.json, on the scopes it names, and the legacy
+      # mock has none. Adding Sender to the API, or any role anywhere unplanned, fails here.
+      - name: Role matrix
+        run: python3 scripts/role_matrix.py --arm "$RUNNER_TEMP/arm/main.json"
+
+      - name: Role matrix tests (they change the compiled template the way a careless pull request would)
+        env:
+          ROLE_MATRIX_ARM_JSON: ${{ runner.temp }}/arm/main.json
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
+
+      # PSRule for Azure: Well-Architected security, reliability and operations rules over the expanded template. The baseline and each
+      # suppression, with its reason, are in ps-rule.yaml and infra/README.md. continue-on-error: this step has never run, and PSRule's
+      # rules change between releases, so it reports and uploads results but does not block until it has run green once. Then remove the
+      # line below.
+      - name: PSRule for Azure
+        id: psrule
+        continue-on-error: true
+        uses: microsoft/ps-rule@46451b8f5258c41beb5ae69ed7190ccbba84112c # v2.9.0
+        with:
+          modules: PSRule.Rules.Azure
+          inputPath: infra/main.ci.bicepparam
+          option: ps-rule.yaml
+          outputFormat: Markdown
+          outputPath: reports/ps-rule-results.md
+          summary: true
+
+      - name: Upload the compiled template and the PSRule report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: iac
+          path: |
+            ${{ runner.temp }}/arm/main.json
+            reports/
+          if-no-files-found: warn
+
+  # SC-01: a software bill of materials of what the repository would ship: NuGet (from the lock files) and npm (from package-lock.json).
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Generate the SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: sbom.cyclonedx.json
+          artifact-name: sbom-cyclonedx
+          upload-release-assets: false
+
+  # SC-01: on a pull request, fail on a newly added dependency with a known high-severity vulnerability, or a licence the project
+  # does not allow. Needs the dependency graph to be on (a repository setting, on by default for public repositories).
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never

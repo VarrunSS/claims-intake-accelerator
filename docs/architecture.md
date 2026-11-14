@@ -55,7 +55,7 @@ flowchart LR
         LAPI --- SQL
     end
 
-    Fn -- "claim-documents queue" --> AG
+    Fn -- "claims-for-review queue (traceparent)" --> API
     DI --> AG
     T1 -- read --> LAPI
     T3 -- read --> LAPI
@@ -135,7 +135,7 @@ from the document id so a repeat is recognised.
 ## Trust boundaries and data flow
 
 1. **Outside to inbox.** Documents come from brokers and are untrusted. They are treated as data, never as
-   instructions. They are size-limited (10 MB) and type-checked at intake.
+   instructions. They are size-limited (10 MB), page-limited (50 pages), time-limited (30 s) and checked by their first bytes against the claimed type at intake. Malware scanning is not done (Defender for Storage, README known limitations).
 2. **Inbox to extractor.** The extractor sees document text. In M2 the model has no tools, its reply is
    validated against the document, and a value it cannot ground in the text has its confidence capped. In M3 the
    assessing agent has read-only tools and `propose_claim` has no writer to call
@@ -157,7 +157,7 @@ from the document id so a repeat is recognised.
 - **Observability:** OpenTelemetry in the API and the watcher (console exporter by default, OTLP optional). The
   pipeline emits an `intake.<stage>` span per stage with `stage`, `duration_ms`, `documentId` and `confidence`, and a
   `tool.<name>` span per tool call, and never document text or field values. Application Insights is created in the infrastructure. Exporting to it,
-  including the Function App's spans, is wired in Milestone 6.
+  including the Function App's spans, is wired in Milestone 6b: Azure Monitor OpenTelemetry (managed identity, `DisableLocalAuth`), a W3C `traceparent` carried in the Service Bus message properties so Function, queue and API are one trace, metrics, alerts and a workbook (`infra/`). Local mode keeps console and OTLP exporters.
 - **Configuration:** settings name resources, not secrets. Key Vault is provisioned and empty.
 
 ## Deployment (not yet exercised)

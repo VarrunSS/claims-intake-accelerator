@@ -1,0 +1,24 @@
+{
+  "_comment": "The Azure role assignments the system is allowed to have (INF-01). scripts/role_matrix.py compiles infra/main.bicep and fails when the real assignments differ from this file. A scope is the resource type and the role-module parameter that names it. Change this file in the same pull request as the Bicep, and say why.",
+  "identities": {
+    "function": [
+      { "role": "Storage Blob Data Owner", "scope": "Microsoft.Storage/storageAccounts:hostStorageName" },
+      { "role": "Storage Queue Data Contributor", "scope": "Microsoft.Storage/storageAccounts:hostStorageName" },
+      { "role": "Storage Table Data Contributor", "scope": "Microsoft.Storage/storageAccounts:hostStorageName" },
+      { "role": "Storage Blob Data Owner", "scope": "Microsoft.Storage/storageAccounts/blobServices/containers:inboxStorageName/default/inboxContainerName" },
+      { "role": "Azure Service Bus Data Sender", "scope": "Microsoft.ServiceBus/namespaces/queues:serviceBusName/reviewQueueName" },
+      { "role": "Search Index Data Reader", "scope": "Microsoft.Search/searchServices:searchServiceName" },
+      { "role": "Cognitive Services OpenAI User", "scope": "Microsoft.CognitiveServices/accounts:foundryAccountName" },
+      { "role": "Monitoring Metrics Publisher", "scope": "Microsoft.Insights/components:applicationInsightsName" }
+    ],
+    "api": [
+      { "role": "Azure Service Bus Data Receiver", "scope": "Microsoft.ServiceBus/namespaces/queues:serviceBusName/reviewQueueName" },
+      { "role": "Storage Table Data Contributor", "scope": "Microsoft.Storage/storageAccounts:auditStorageName" },
+      { "role": "Monitoring Metrics Publisher", "scope": "Microsoft.Insights/components:applicationInsightsName" }
+    ],
+    "legacy": [],
+    "eventGridTopic": [
+      { "role": "Storage Blob Data Contributor", "scope": "Microsoft.Storage/storageAccounts/blobServices/containers:hostStorageName/default/eventGridDeadLetterContainerName" }
+    ]
+  }
+}

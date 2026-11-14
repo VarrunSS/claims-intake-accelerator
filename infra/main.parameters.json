@@ -7,6 +7,18 @@
     },
     "location": {
       "value": "${AZURE_LOCATION}"
+    },
+    "reviewApiClientId": {
+      "value": "${AZURE_REVIEW_API_CLIENT_ID}"
+    },
+    "legacyClientId": {
+      "value": "${AZURE_LEGACY_CLIENT_ID}"
+    },
+    "deployEventSubscription": {
+      "value": "${AZURE_DEPLOY_EVENT_SUBSCRIPTION=false}"
+    },
+    "alertEmailAddress": {
+      "value": "${AZURE_ALERT_EMAIL=}"
     }
   }
 }

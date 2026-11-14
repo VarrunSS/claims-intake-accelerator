@@ -15,7 +15,12 @@ and that a burst does not take the review screen down.
 
 Requirements that shape the choice:
 
-- A document must never be silently dropped. A failure must be visible and retryable.
+- A document must never be silently dropped. A failure must be visible and retryable. **This holds on the Azure path
+  only with two caveats, stated plainly (Milestone 6b review):** the review store is in memory, so an API restart
+  loses every claim awaiting review (REL-01, fixed with a durable store in Milestone 7; the API is pinned to one
+  instance until then), and the claim-check pattern for very large documents is not built (the hand-off cuts the text
+  below 200 KB and tells a person to read the original). What is visible: dead-lettered messages alert, Event Grid
+  dead-letters, over-long and over-large inputs reach a person with a blocking issue.
 - Handlers' review screen must stay responsive whatever the intake load.
 - Processing is idempotent: the same document handled twice must not create two claims.
 - Components are owned by different people later (intake, review, legacy integration), so they should be
@@ -30,8 +35,9 @@ Use an event-driven pipeline built from managed Azure services:
 2. **Event Grid** publishes a blob-created event.
 3. An **Azure Function** (.NET isolated worker, Flex Consumption plan) with a blob trigger that uses the Event
    Grid source starts processing: OCR, then the extraction agent.
-4. The Function writes a message to a **Service Bus** queue. Queues separate the stages: `claim-documents`
-   for work to do, and `claims-for-review` for extracted claims ready for a handler.
+4. The Function runs the whole pipeline in process (no intermediate queue: the `claim-documents` queue the first
+   milestone provisioned was never used and was removed in Milestone 6b) and writes the extracted claim to the
+   **Service Bus** queue `claims-for-review`, which has duplicate detection on the claim id.
 5. The **ASP.NET Core API** reads `claims-for-review`, stores the claim and serves the review screen.
 6. After approval, the API writes to the legacy claims system with an idempotency key.
 

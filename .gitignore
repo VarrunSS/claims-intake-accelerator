@@ -504,3 +504,4 @@ local-inbox/
 !/evals/results/comparison-sample/
 /evals/results/comparison-sample/*
 !/evals/results/comparison-sample/comparison.md
+.tools/

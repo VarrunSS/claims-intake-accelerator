@@ -42,6 +42,18 @@ public sealed class InputQualityOptions
     /// <summary>Largest document accepted, in bytes.</summary>
     public int MaxDocumentBytes { get; set; } = ClaimIntakePipeline.MaxDocumentBytes;
 
+    /// <summary>The default for <see cref="MaxPages"/>: the pilot scope is 10 pages, so 50 leaves room without inviting a 5,000-page PDF.</summary>
+    public const int DefaultMaxPages = 50;
+
+    /// <summary>A PDF with more pages than this is handed to a person unread (INP-01). Must not exceed the shared limit of 100 pages.</summary>
+    public int MaxPages { get; set; } = DefaultMaxPages;
+
+    /// <summary>
+    /// How long the checks and the text extraction may take for one document. Past it the document is handed to a person with a
+    /// finding, rather than holding the Function. Set <see cref="TimeSpan.Zero"/> to turn the deadline off.
+    /// </summary>
+    public TimeSpan ProcessingDeadline { get; set; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Fewer letters and digits than this and the text is treated as unreadable.</summary>
     public int MinTextCharacters { get; set; } = 40;
 
@@ -70,14 +82,15 @@ public sealed class InputQualityGate(IEnumerable<IInputQualityCheck> checks)
         return null;
     }
 
-    /// <summary>The five checks Milestone 4 adds, with an in-memory record of the files seen.</summary>
+    /// <summary>The checks of Milestones 4 and 6 (six, with the file signature), with an in-memory record of the files seen.</summary>
     public static InputQualityGate CreateDefault(InputQualityOptions? options = null, IDocumentHashStore? hashes = null)
     {
         options ??= new InputQualityOptions();
         return new InputQualityGate(
         [
             new DocumentSizeCheck(options.MaxDocumentBytes),
-            new PdfIntegrityCheck(),
+            new FileSignatureCheck(),
+            new PdfIntegrityCheck(options.MaxPages),
             new DuplicateFileCheck(hashes ?? new InMemoryDocumentHashStore()),
             new ReadableTextCheck(options.MinTextCharacters),
             new ClaimContentCheck(options.MinClaimTerms),

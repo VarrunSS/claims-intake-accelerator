@@ -1,0 +1,79 @@
+# PSRule for Azure (INF-02). Run by the "iac" job in .github/workflows/ci.yml over infra/main.ci.bicepparam, which expands main.bicep and
+# every module. The baseline is the module's default GA baseline: the rules Microsoft considers generally available, across the Azure
+# Well-Architected pillars.
+#
+# THIS FILE HAS NEVER BEEN RUN (PSRule is not installed in the environment this was written in, and no PowerShell Gallery module was
+# downloaded). The suppressions below are the findings expected from reading the templates against the rule documentation; the first CI
+# run will show which are right and which rules are missing or renamed. The job does not block on PSRule until it has run green once
+# (see the comment in ci.yml). Every suppression names the finding that tracks it. Nothing is suppressed because it is inconvenient:
+# each is a decision recorded in an ADR, or a known limitation in the README.
+#
+# To add a suppression: put it in `rule.exclude` with a comment that names the ADR or the finding, and say so in infra/README.md.
+
+requires:
+  PSRule.Rules.Azure: '>=1.40.0'
+
+configuration:
+  # Expand main.bicep (and the modules it deploys) with the Bicep CLI and the parameter file given as input.
+  AZURE_BICEP_FILE_EXPANSION: true
+  AZURE_BICEP_PARAMS_FILE_EXPANSION: true
+  AZURE_BICEP_CHECK_TOOL: true
+  AZURE_BICEP_MINIMUM_VERSION: '0.30.0'
+  # The system is deployed to UK South only (data residency).
+  AZURE_RESOURCE_ALLOWED_LOCATIONS:
+    - uksouth
+
+input:
+  pathIgnore:
+    - '**/*.md'
+    - 'src/**'
+    - 'ui/**'
+    - 'docs/**'
+
+rule:
+  baseline: Azure.Default
+  exclude:
+    # --- Network exposure: public endpoints are a decision, not an oversight (docs/adr/0011-network.md, INF-03) ---------------------
+    # Private endpoints for storage, Key Vault, Search, Foundry and Service Bus need a VNet, and Service Bus needs the Premium tier
+    # (about 550 pounds a month for one messaging unit). Deferred until there is a real customer environment. Authentication is Entra ID
+    # only (shared keys and local auth are off everywhere).
+    - Azure.Storage.Firewall
+    - Azure.Storage.PrivateEndpoints
+    - Azure.ServiceBus.Firewall
+    - Azure.ServiceBus.PrivateEndpoints
+    - Azure.ServiceBus.Premium
+    - Azure.KeyVault.Firewall
+    - Azure.KeyVault.PrivateEndpoints
+    - Azure.Search.IPRuleSet
+    - Azure.Search.PrivateEndpoints
+    - Azure.AI.PrivateEndpoints
+    - Azure.AI.NetworkAccess
+    - Azure.AppService.PrivateEndpoints
+    - Azure.AppService.WebProbe
+    - Azure.Functions.PrivateEndpoints
+
+    # --- Cost: a skeleton and a pilot, not production capacity (README "Known limitations") ---------------------------------------------
+    # The review store is in memory (REL-01), so the API is pinned to one instance on purpose: a second would hold different claims.
+    - Azure.AppService.PlanInstanceCount
+    - Azure.AppService.MinPlan
+    - Azure.AppService.AvailabilityZone
+    # LRS is enough for a working copy that the lifecycle policy deletes (docs/adr/0010-retention.md); the record of the claim is the legacy
+    # system. Zone- or geo-redundancy is a production decision with a cost.
+    - Azure.Storage.UseReplication
+    - Azure.Storage.SoftDelete
+    # Azure AI Search "free" has no SLA and one replica; basic is a parameter (searchSku).
+    - Azure.Search.SKU
+    - Azure.Search.Replica
+    - Azure.Search.QuerySLA
+    - Azure.Search.IndexSLA
+    # Premium Service Bus features the pilot does not use.
+    - Azure.ServiceBus.GeoReplication
+
+    # --- Not applicable to what is deployed ---------------------------------------------------------------------------------------------
+    # Defender for Cloud plans are a subscription setting, outside this template (README: Defender for Storage is listed as a known limitation).
+    - Azure.Storage.Defender
+    # Diagnostic settings to a workspace for every resource are the next step after the first deployment shows which logs are worth paying for.
+    - Azure.KeyVault.Logs
+    - Azure.ServiceBus.AuditLogs
+    - Azure.Search.Logs
+    - Azure.AppService.DiagnosticLogs

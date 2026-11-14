@@ -1,4 +1,5 @@
 using System.Text;
+using ClaimsIntake.Pipeline.Quality;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
@@ -19,7 +20,7 @@ public sealed class LocalPdfTextExtractor : IDocumentTextExtractor
 
         DocumentText text = extension switch
         {
-            ".pdf" => ReadPdf(document.Content),
+            ".pdf" => ParsedPdfCache.TryTake(document, out var parsed) ? new DocumentText(parsed) : ReadPdf(document.Content),
             ".txt" or ".eml" => new DocumentText([Normalise(Encoding.UTF8.GetString(document.Content.ToMemory().Span))]),
             _ => throw new UnreadableDocumentException(
                 $"Files of type \"{extension}\" are not supported. Use one of: {string.Join(", ", SupportedExtensions)}."),
@@ -52,6 +53,6 @@ public sealed class LocalPdfTextExtractor : IDocumentTextExtractor
         }
     }
 
-    private static string Normalise(string text) =>
+    internal static string Normalise(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Trim();
 }

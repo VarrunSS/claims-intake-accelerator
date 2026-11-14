@@ -1,11 +1,11 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { MsalService } from '@azure/msal-angular';
 import { of, throwError } from 'rxjs';
 import { authInterceptor } from './auth.interceptor';
 import { AuthService } from './auth.service';
 import { RUNTIME_CONFIG, RuntimeConfig, UNCONFIGURED, isConfigured, loadRuntimeConfig } from './config';
+import { MSAL_CLIENT } from './msal-client';
 
 const configured: RuntimeConfig = {
   auth: { clientId: 'client-1', tenantId: 'tenant-1', apiScope: 'api://api-1/access_as_user' },
@@ -38,7 +38,7 @@ function setupMsal(msal = fakeMsal()) {
       provideHttpClient(withInterceptors([authInterceptor])),
       provideHttpClientTesting(),
       { provide: RUNTIME_CONFIG, useValue: configured },
-      { provide: MsalService, useValue: msal },
+      { provide: MSAL_CLIENT, useValue: msal },
     ],
   });
   return { auth: TestBed.inject(AuthService), http: TestBed.inject(HttpTestingController), msal };

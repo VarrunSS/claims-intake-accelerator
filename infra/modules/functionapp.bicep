@@ -6,7 +6,7 @@ param functionAppName string
 param location string
 param tags object
 
-@description('Resource id of the user-assigned managed identity.')
+@description('Resource id of the Function identity.')
 param identityId string
 
 @description('Client id of the same identity. Selects it for identity-based connections.')
@@ -22,13 +22,18 @@ param deploymentContainerName string = 'app-package'
 param inboxBlobEndpoint string
 
 param serviceBusNamespace string
-param documentsQueueName string
 
 @description('Base address of the legacy claims system, for the policy lookup.')
 param legacyBaseUrl string
 
 @description('Base address of the review API, for the duplicate check (GET /claims/history).')
 param apiBaseUrl string
+
+@description('Identifier URI of the legacy mock app registration. The Function asks for an app-only token for it (Claims.Read, Policies.Read).')
+param legacyAudience string
+
+@description('Identifier URI of the review API app registration. The Function asks for an app-only token for it (Intake.ReadHistory).')
+param reviewApiAudience string
 
 @description('Endpoint of the Azure AI Search service that holds the policy wording index.')
 param searchEndpoint string
@@ -124,6 +129,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     }
     siteConfig: {
       minTlsVersion: '1.2'
+      scmMinTlsVersion: '1.2'
       ftpsState: 'Disabled'
       // Flex Consumption sets FUNCTIONS_WORKER_RUNTIME itself; do not add it here.
       appSettings: [
@@ -133,26 +139,23 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'InboxStorage__serviceUri', value: inboxBlobEndpoint }
         { name: 'InboxStorage__credential', value: 'managedidentity' }
         { name: 'InboxStorage__clientId', value: identityClientId }
-        { name: 'ServiceBus__fullyQualifiedNamespace', value: serviceBusNamespace }
-        { name: 'ServiceBus__credential', value: 'managedidentity' }
-        { name: 'ServiceBus__clientId', value: identityClientId }
-        { name: 'ClaimDocumentsQueue', value: documentsQueueName }
-        // Intake pipeline (ClaimsIntake.Pipeline). The Document Intelligence and Foundry settings are not set yet:
-        // those resources are not in this template, so the Function App uses the local text and heuristic
-        // extractors until they are added. See docs/adr/0005 and the README.
+        // Intake pipeline (ClaimsIntake.Pipeline). The Function sends to the review queue and nothing else on Service Bus.
         { name: 'Intake__Sink', value: 'ServiceBus' }
         { name: 'Intake__ServiceBus__FullyQualifiedNamespace', value: serviceBusNamespace }
         { name: 'Intake__ServiceBus__QueueName', value: reviewQueueName }
         { name: 'Intake__ManagedIdentityClientId', value: identityClientId }
+        // App-only tokens for the legacy system and the review API, from this identity (SEC-05, SEC-06).
         { name: 'Intake__Legacy__BaseUrl', value: legacyBaseUrl }
+        { name: 'Intake__Legacy__Scope', value: '${legacyAudience}/.default' }
         { name: 'Intake__Api__BaseUrl', value: apiBaseUrl }
+        { name: 'Intake__Api__Scope', value: '${reviewApiAudience}/.default' }
         // Assessment (Milestone 3). The rule-based assessor and the local BM25 search run inside the app and need no
         // other resource. To use Azure AI Search, run the ingestion tool, deploy an embedding model, then set
         // Intake__PolicySearch to AzureAiSearch and Intake__Foundry__Endpoint / EmbeddingDeployment. The agent
-        // assessor (Intake__Assessor = Agent) also needs Intake__Foundry__Deployment. Neither model is in this template.
+        // assessor (Intake__Assessor = Agent) also needs Intake__Foundry__Deployment.
         { name: 'Intake__Assessor', value: assessor }
         // Model-backed stages (Milestone 5). The defaults keep both off. Turn them on with the claimExtractor and assessor
-        // parameters; the identity's role on the Foundry account comes from modules/foundry.bicep.
+        // parameters; the identity's role on the Foundry account comes from modules/roles.bicep.
         { name: 'Intake__ClaimExtractor', value: claimExtractor }
         { name: 'Intake__PromptVersion', value: promptVersion }
         { name: 'Intake__Foundry__Endpoint', value: foundryEndpoint }
@@ -161,11 +164,30 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Intake__AzureAiSearch__Endpoint', value: searchEndpoint }
         { name: 'Intake__AzureAiSearch__IndexName', value: 'policy-wordings' }
         { name: 'AZURE_CLIENT_ID', value: identityClientId }
+        // OpenTelemetry mode (host.json) with the Azure Monitor exporter, signing in with the identity (OBS-01).
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
       ]
     }
   }
 }
 
+// Turn off username and password publishing so deployments must use Entra ID (INF-04, DOC-01 a).
+resource functionFtpPolicy 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2024-04-01' = {
+  parent: functionApp
+  name: 'ftp'
+  properties: {
+    allow: false
+  }
+}
+
+resource functionScmPolicy 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2024-04-01' = {
+  parent: functionApp
+  name: 'scm'
+  properties: {
+    allow: false
+  }
+}
+
 output name string = functionApp.name
 output id string = functionApp.id
+output defaultHostName string = functionApp.properties.defaultHostName

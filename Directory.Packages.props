@@ -1,0 +1,76 @@
+<Project>
+  <!--
+    Central package management (SC-01). Every package version lives here, so a version is changed in one place and Dependabot
+    proposes one pull request per package. Lock files (packages.lock.json) are committed beside each project, and CI restores
+    in locked mode (the locked-mode restore option), so a dependency that changes without a reviewed change to this file or a lock file fails the build.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- A PackageVersion below also pins a package that only arrives transitively, in every project that uses it. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Known-vulnerability warnings (NU1901 to NU1904) are errors through TreatWarningsAsErrors, for direct and transitive packages. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+
+  <!-- Runtime packages (src/). No prerelease version may appear here; the Evals group below is the only exception (SC-03). -->
+  <ItemGroup Label="Runtime">
+    <PackageVersion Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
+    <PackageVersion Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <PackageVersion Include="Azure.Data.Tables" Version="12.13.0" />
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
+    <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.10.0" />
+    <PackageVersion Include="Azure.Search.Documents" Version="11.7.0" />
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.28.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Blobs" Version="6.8.2" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
+    <PackageVersion Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Identity.Web" Version="4.16.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.21.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.21.0" />
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+  </ItemGroup>
+
+  <!-- Transitive pins. Microsoft.Identity.Web brings these in at 10.0.10, which has advisories (NU1903). They are not referenced
+       by any project: with transitive pinning, the patched release applies wherever they arrive. This replaces the PackageReference
+       pins part A added to four projects. -->
+  <ItemGroup Label="Transitive pins">
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.15" />
+  </ItemGroup>
+
+  <ItemGroup Label="Tests">
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.21.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <!-- Evaluation tooling only (evals/ClaimsIntake.Evals). Azure.AI.Inference is beta and its Extensions.AI adapter is a preview.
+       They never reach src/: scripts/check-no-prerelease.ps1 and the CI "supply-chain" job fail if a prerelease version is
+       referenced from src/. -->
+  <ItemGroup Label="Evals (prerelease allowed here only)">
+    <PackageVersion Include="Anthropic.Foundry" Version="1.0.0" />
+    <PackageVersion Include="Azure.AI.Inference" Version="1.0.0-beta.5" />
+    <PackageVersion Include="Microsoft.Extensions.AI.AzureAIInference" Version="10.0.0-preview.1.25559.3" />
+  </ItemGroup>
+</Project>
