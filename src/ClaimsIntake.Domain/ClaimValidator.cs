@@ -17,6 +17,25 @@ public static class ClaimValidator
     public static bool TryParseDate(string? text, out DateOnly date) =>
         DateOnly.TryParseExact(text?.Trim(), DateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
 
+    /// <summary>Parses an amount such as <c>£12,500</c> or <c>8,750.00</c>. Negative amounts are not accepted.</summary>
+    public static bool TryParseAmount(string? text, out decimal amount)
+    {
+        amount = 0;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var cleaned = text.Replace("£", "", StringComparison.Ordinal).Replace(",", "", StringComparison.Ordinal).Trim();
+        if (decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out amount) && amount >= 0)
+        {
+            return true;
+        }
+
+        amount = 0;
+        return false;
+    }
+
     /// <param name="fields">The extracted fields of the claim.</param>
     /// <param name="policy">The policy the claim names, or null if it was not found in the legacy system.</param>
     /// <param name="today">Today's date in the UK. Passed in so tests do not depend on the clock.</param>
@@ -89,11 +108,10 @@ public static class ClaimValidator
             return; // The amount is optional at intake; handlers often add it later.
         }
 
-        var text = field.Value!.Replace("£", "", StringComparison.Ordinal).Replace(",", "", StringComparison.Ordinal).Trim();
-        if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount) || amount < 0)
+        if (!TryParseAmount(field.Value, out _))
         {
             issues.Add(new(IssueCode.InvalidAmount, IssueSeverity.Warning, ClaimFields.EstimatedAmount,
-                $"The estimated amount \"{field.Value.Trim()}\" is not a valid positive amount."));
+                $"The estimated amount \"{field.Value!.Trim()}\" is not a valid positive amount."));
         }
     }
 

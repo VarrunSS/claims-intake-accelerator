@@ -71,3 +71,19 @@ button.field.active { border-color: var(--accent); box-shadow: inset 0 0 0 2px v
 .field-value { grid-column: 1; font-weight: 600; word-break: break-word; }
 button.field .badge { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .actions { display: flex; gap: 12px; margin-top: 12px; }
+
+/* Coverage assessment */
+.chip.route-StraightToHandler { background: var(--ok-bg); color: var(--ok-fg); }
+.chip.route-SeniorReview { background: var(--warn-bg); color: var(--warn-fg); }
+ul.findings, ul.notes { list-style: none; padding: 0; margin: 8px 0; }
+li.finding { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.chip.finding-CoverageClause { background: var(--ok-bg); color: var(--ok-fg); }
+.chip.finding-PossibleExclusion, .chip.finding-NotificationBreach, .chip.finding-PossibleDuplicate { background: var(--bad-bg); color: var(--bad-fg); }
+details.citation { margin: 6px 0 0 12px; }
+details.citation summary { cursor: pointer; }
+details.citation blockquote { margin: 6px 0 0; padding: 6px 12px; border-left: 3px solid var(--accent); background: #fafafa; }
+.clause-ref { font-weight: 600; }
+details.audit { margin-top: 12px; }
+details.audit summary { cursor: pointer; font-weight: 600; }
+table.audit-table { font-size: 0.9rem; margin-top: 8px; }
+table.audit-table tr.failed td { color: var(--bad-fg); }

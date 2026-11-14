@@ -1,5 +1,6 @@
 using ClaimsIntake.Api.Telemetry;
 using ClaimsIntake.Domain;
+using ClaimsIntake.Domain.Assessment;
 
 namespace ClaimsIntake.Api.Claims;
 
@@ -12,7 +13,9 @@ public static class ClaimEndpoints
         var group = app.MapGroup("/claims").WithTags("Claims");
 
         group.MapGet("/", ListClaims);
+        group.MapGet("/history", History);
         group.MapGet("/{id:guid}", GetClaim);
+        group.MapGet("/{id:guid}/audit", GetAudit);
         group.MapPost("/{id:guid}/approve", ApproveClaim);
         group.MapPost("/{id:guid}/reject", RejectClaim);
 
@@ -45,6 +48,32 @@ public static class ClaimEndpoints
 
         var claims = await repository.ListAsync(filter, ct);
         return Results.Ok(claims.Select(ClaimSummary.From));
+    }
+
+    // GET /claims/history?policyNumber=TM-CP-100001: the claims on a policy that could still be duplicates (rejected ones are left out).
+    // It returns ids, dates, amounts and statuses only. The intake pipeline calls it for the duplicate check.
+    private static async Task<IResult> History(string? policyNumber, IClaimRepository repository, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(policyNumber) || policyNumber.Length > 40)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["policyNumber"] = ["A policy number is required."] });
+        }
+
+        var claims = await repository.ListAsync(null, ct);
+        return Results.Ok(claims
+            .Where(c => c.Status != ClaimStatus.Rejected && string.Equals(c.PolicyNumber, policyNumber.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Select(ClaimHistoryItem.From));
+    }
+
+    // GET /claims/{id}/audit: every tool call made while the claim was assessed, oldest first. Arguments are redacted.
+    private static async Task<IResult> GetAudit(Guid id, IClaimRepository repository, IAuditLog audit, CancellationToken ct)
+    {
+        if (await repository.GetAsync(id, ct) is null)
+        {
+            return NotFound(id);
+        }
+
+        return Results.Ok((await audit.ForClaimAsync(id, ct)).Select(AuditEntryDto.From));
     }
 
     private static async Task<IResult> GetClaim(Guid id, IClaimRepository repository, CancellationToken ct)

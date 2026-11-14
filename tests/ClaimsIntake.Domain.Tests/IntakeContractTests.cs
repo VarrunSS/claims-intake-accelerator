@@ -105,3 +105,97 @@ public class IntakeContractTests
         Assert.Empty(claim.SourcePages);
     }
 }
+
+public class AssessmentContractTests
+{
+    private static ClaimsIntake.Domain.Assessment.ClaimAssessment Assessment() => new(
+        "rules",
+        [
+            new(ClaimsIntake.Domain.Assessment.FindingKind.PossibleExclusion, "Flood may be excluded.",
+                [new("TM-PW-OF-2026", "4.1", "Flood", "We will not pay for flood.")]),
+            new(ClaimsIntake.Domain.Assessment.FindingKind.PossibleDuplicate, "Matches LC-000001.", [], "LC-000001"),
+        ],
+        ClaimsIntake.Domain.Assessment.ReviewRoute.SeniorReview, "Needs senior review.", ["a note"]);
+
+    private static ProposedClaim WithAssessment() => new(
+        "inbox/a.pdf", new DateTimeOffset(2026, 11, 14, 9, 0, 0, TimeSpan.Zero),
+        [new ExtractedField(ClaimFields.PolicyNumber, "TM-CP-100001", 0.97)], [], ["page"],
+        Assessment(),
+        [new ClaimsIntake.Domain.Assessment.AuditEntry(Guid.NewGuid(), "lookup_policy", new Dictionary<string, string> { ["policy_number"] = "TM-CP-100001" },
+            "found", 2.5, new DateTimeOffset(2026, 11, 14, 9, 0, 1, TimeSpan.Zero))]);
+
+    [Fact]
+    public void An_assessment_and_audit_trail_survive_a_json_round_trip_with_enum_names()
+    {
+        var original = WithAssessment();
+
+        var json = original.ToJson();
+        var back = ProposedClaim.FromJson(json);
+
+        Assert.Contains("\"kind\":\"PossibleExclusion\"", json);
+        Assert.Contains("\"route\":\"SeniorReview\"", json);
+        Assert.Equal(original.Assessment!.Findings.Select(f => (f.Kind, f.Summary, f.RelatedClaimRef)), back.Assessment!.Findings.Select(f => (f.Kind, f.Summary, f.RelatedClaimRef)));
+        Assert.Equal(original.Assessment.Findings[0].Citations, back.Assessment.Findings[0].Citations);
+        Assert.Equal(original.AuditTrail![0].Arguments, back.AuditTrail![0].Arguments);
+        Assert.Equal(original.AuditTrail[0].Timestamp, back.AuditTrail[0].Timestamp);
+    }
+
+    [Fact]
+    public void A_message_from_before_assessments_existed_still_reads_with_none()
+    {
+        var old = """{"documentId":"inbox/a.pdf","receivedAt":"2026-11-14T09:00:00Z","fields":[],"issues":[],"sourcePages":[]}""";
+
+        var claim = ProposedClaim.FromJson(old);
+
+        Assert.Null(claim.Assessment);
+        Assert.Null(claim.AuditTrail);
+    }
+
+    [Fact]
+    public void The_assessment_reaches_the_claim_but_never_changes_its_status()
+    {
+        var claim = WithAssessment().ToClaim();
+
+        Assert.Equal(ClaimStatus.NeedsReview, claim.Status);
+        Assert.Equal(ClaimsIntake.Domain.Assessment.ReviewRoute.SeniorReview, claim.Assessment!.Route);
+        Assert.False(claim.HasBlockingIssues); // A senior-review route is advice, not a blocking issue.
+        claim.Approve("a.patel", DateTimeOffset.UnixEpoch);
+        Assert.Equal(ClaimStatus.Approved, claim.Status);
+    }
+
+    [Fact]
+    public void A_claim_without_an_assessment_has_none_and_one_cannot_be_attached_as_null()
+    {
+        var claim = new Claim(Guid.NewGuid(), "d", DateTimeOffset.UnixEpoch, [], []);
+
+        Assert.Null(claim.Assessment);
+        Assert.Throws<ArgumentNullException>(() => claim.AttachAssessment(null!));
+    }
+
+    [Theory]
+    [InlineData("£12,500", true, 12500)]
+    [InlineData("8,750.00", true, 8750)]
+    [InlineData(" £0 ", true, 0)]
+    [InlineData("-5", false, 0)]
+    [InlineData("about six grand", false, 0)]
+    [InlineData("", false, 0)]
+    [InlineData(null, false, 0)]
+    public void Amounts_are_parsed_the_way_the_validator_reads_them(string? text, bool ok, int expected)
+    {
+        Assert.Equal(ok, ClaimValidator.TryParseAmount(text, out var amount));
+        Assert.Equal(expected, amount);
+    }
+
+    [Fact]
+    public void A_policy_reference_may_carry_a_wording_and_an_excess_and_equality_still_holds()
+    {
+        var plain = new PolicyReference("TM-CP-100001", "X", new(2026, 1, 1), new(2026, 12, 31));
+        var full = plain with { };
+        var withWording = new PolicyReference("TM-CP-100001", "X", new(2026, 1, 1), new(2026, 12, 31), "TM-PW-CC-2026", 500m);
+
+        Assert.Null(plain.WordingId);
+        Assert.Equal(plain, full);
+        Assert.NotEqual(plain, withWording);
+        Assert.Equal(("TM-PW-CC-2026", 500m), (withWording.WordingId, withWording.ExcessGbp));
+    }
+}

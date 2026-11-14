@@ -57,3 +57,30 @@ export function segmentPage(text: string, spans: { offset: number; length: numbe
   }
   return segments;
 }
+
+const FINDING_LABELS: Record<string, string> = {
+  CoverageClause: 'Cover',
+  PossibleExclusion: 'Possible exclusion',
+  NotificationBreach: 'Late notification',
+  PossibleDuplicate: 'Possible duplicate',
+};
+
+export function findingLabel(kind: string): string {
+  return FINDING_LABELS[kind] ?? kind;
+}
+
+/** Findings that should make a handler stop and look: everything except a plain cover clause. */
+export function findingNeedsAttention(kind: string): boolean {
+  return kind !== 'CoverageClause';
+}
+
+export function routeLabel(route: string): string {
+  return route === 'SeniorReview' ? 'Needs senior review' : 'Straight to handler';
+}
+
+/** A short, readable form of a redacted audit argument list, for example "policy_number: TM-CP-100001". */
+export function formatArguments(args: Record<string, string>): string {
+  return Object.entries(args)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(', ');
+}

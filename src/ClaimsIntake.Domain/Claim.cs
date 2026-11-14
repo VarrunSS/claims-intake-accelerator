@@ -1,3 +1,5 @@
+using ClaimsIntake.Domain.Assessment;
+
 namespace ClaimsIntake.Domain;
 
 /// <summary>
@@ -56,6 +58,9 @@ public sealed class Claim
     /// </summary>
     public IReadOnlyList<string> SourcePages => _sourcePages;
 
+    /// <summary>Coverage findings against the policy wording. Null when no assessor ran. Advice for the handler only.</summary>
+    public ClaimAssessment? Assessment { get; private set; }
+
     /// <summary>The reference the legacy claims system gave the claim. Null until the claim is submitted.</summary>
     public string? LegacyReference { get; private set; }
 
@@ -67,6 +72,10 @@ public sealed class Claim
 
     /// <summary>True when any issue is an error. Such a claim can be rejected but not approved.</summary>
     public bool HasBlockingIssues => _issues.Any(i => i.Severity == IssueSeverity.Error);
+
+    /// <summary>Attaches the assessment made at intake. It never changes the status of the claim.</summary>
+    public void AttachAssessment(ClaimAssessment assessment) =>
+        Assessment = assessment ?? throw new ArgumentNullException(nameof(assessment));
 
     /// <summary>Approves the claim. Only a claim awaiting review, with no blocking issues, can be approved.</summary>
     public void Approve(string reviewer, DateTimeOffset now)

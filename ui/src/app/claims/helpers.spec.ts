@@ -1,4 +1,13 @@
-import { confidenceBand, confidenceLabel, fieldLabel, segmentPage } from './helpers';
+import {
+  confidenceBand,
+  confidenceLabel,
+  fieldLabel,
+  findingLabel,
+  findingNeedsAttention,
+  formatArguments,
+  routeLabel,
+  segmentPage,
+} from './helpers';
 
 describe('confidenceBand', () => {
   it('uses 0.90 and 0.80 as the boundaries', () => {
@@ -61,5 +70,33 @@ describe('segmentPage', () => {
 
   it('treats markup in the text as plain text', () => {
     expect(segmentPage('<b>x</b>', [{ offset: 0, length: 3 }])[0]).toEqual({ text: '<b>', marked: true });
+  });
+});
+
+describe('assessment helpers', () => {
+  it('names each kind of finding and falls back to the raw kind', () => {
+    expect(findingLabel('PossibleExclusion')).toBe('Possible exclusion');
+    expect(findingLabel('NotificationBreach')).toBe('Late notification');
+    expect(findingLabel('PossibleDuplicate')).toBe('Possible duplicate');
+    expect(findingLabel('CoverageClause')).toBe('Cover');
+    expect(findingLabel('Something new')).toBe('Something new');
+  });
+
+  it('treats everything except a cover clause as needing attention', () => {
+    expect(findingNeedsAttention('CoverageClause')).toBe(false);
+    expect(findingNeedsAttention('PossibleExclusion')).toBe(true);
+    expect(findingNeedsAttention('PossibleDuplicate')).toBe(true);
+  });
+
+  it('labels the route in words', () => {
+    expect(routeLabel('SeniorReview')).toBe('Needs senior review');
+    expect(routeLabel('StraightToHandler')).toBe('Straight to handler');
+  });
+
+  it('formats redacted audit arguments on one line', () => {
+    expect(formatArguments({ policy_number: 'TM-CP-100001', query: '[text:12 chars]' })).toBe(
+      'policy_number: TM-CP-100001, query: [text:12 chars]',
+    );
+    expect(formatArguments({})).toBe('');
   });
 });

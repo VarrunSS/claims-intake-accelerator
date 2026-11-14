@@ -205,3 +205,50 @@ public class LegacyApiTests : IClassFixture<WebApplicationFactory<LegacyMarker>>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }
+
+public class LegacyPolicyWordingAndListTests : IClassFixture<WebApplicationFactory<LegacyMarker>>
+{
+    private readonly WebApplicationFactory<LegacyMarker> _factory;
+
+    public LegacyPolicyWordingAndListTests(WebApplicationFactory<LegacyMarker> factory) => _factory = factory;
+
+    private HttpClient NewClient() => _factory.WithWebHostBuilder(_ => { }).CreateClient();
+
+    [Fact]
+    public async Task A_policy_names_the_wording_it_is_written_on()
+    {
+        var policy = await NewClient().GetFromJsonAsync<LegacyPolicy>("/policies/TM-CP-100006");
+
+        Assert.Equal("TM-PW-OF-2026", policy!.WordingId);
+    }
+
+    [Fact]
+    public async Task The_claims_held_for_a_policy_can_be_listed_for_the_duplicate_check()
+    {
+        var client = NewClient();
+        var body = new CreateClaimRequest("TM-CP-100001", "Brindle & Marsh Joinery Ltd", new DateOnly(2026, 11, 3), "Burst pipe.", 12_500m);
+        var other = body with { PolicyNumber = "TM-CP-100002" };
+        foreach (var (request, key) in new[] { (body, "k1"), (other, "k2") })
+        {
+            var message = new HttpRequestMessage(HttpMethod.Post, "/claims") { Content = JsonContent.Create(request) };
+            message.Headers.Add(LegacyEndpoints.IdempotencyHeader, key);
+            (await client.SendAsync(message)).EnsureSuccessStatusCode();
+        }
+
+        var claims = await client.GetFromJsonAsync<List<LegacyClaim>>("/claims?policyNumber=tm-cp-100001");
+
+        var claim = Assert.Single(claims!);
+        Assert.Equal(("TM-CP-100001", new DateOnly(2026, 11, 3), 12_500m), (claim.PolicyNumber, claim.LossDate, claim.EstimatedAmountGbp));
+        Assert.Empty((await client.GetFromJsonAsync<List<LegacyClaim>>("/claims?policyNumber=TM-CP-100003"))!);
+    }
+
+    [Theory]
+    [InlineData("/claims")]
+    [InlineData("/claims?policyNumber=")]
+    public async Task Listing_claims_needs_a_policy_number(string url)
+    {
+        var response = await NewClient().GetAsync(url);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+}

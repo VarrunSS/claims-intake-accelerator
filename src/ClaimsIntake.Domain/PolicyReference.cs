@@ -7,7 +7,10 @@ namespace ClaimsIntake.Domain;
 /// <param name="InsuredName">Name of the insured business.</param>
 /// <param name="PeriodStart">First day of cover (inclusive).</param>
 /// <param name="PeriodEnd">Last day of cover (inclusive).</param>
-public sealed record PolicyReference(string Number, string InsuredName, DateOnly PeriodStart, DateOnly PeriodEnd)
+/// <param name="WordingId">The policy wording the policy is written on, for example TM-PW-CC-2026. Null if the legacy system did not say.</param>
+/// <param name="ExcessGbp">The excess, if the legacy system said.</param>
+public sealed record PolicyReference(
+    string Number, string InsuredName, DateOnly PeriodStart, DateOnly PeriodEnd, string? WordingId = null, decimal? ExcessGbp = null)
 {
     public string Number { get; } = !string.IsNullOrWhiteSpace(Number)
         ? Number

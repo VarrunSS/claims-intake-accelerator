@@ -27,6 +27,12 @@ param documentsQueueName string
 @description('Base address of the legacy claims system, for the policy lookup.')
 param legacyBaseUrl string
 
+@description('Base address of the review API, for the duplicate check (GET /claims/history).')
+param apiBaseUrl string
+
+@description('Endpoint of the Azure AI Search service that holds the policy wording index.')
+param searchEndpoint string
+
 @description('Queue the extracted claims are handed to for review.')
 param reviewQueueName string = 'claims-for-review'
 param applicationInsightsConnectionString string
@@ -116,6 +122,15 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Intake__ServiceBus__QueueName', value: reviewQueueName }
         { name: 'Intake__ManagedIdentityClientId', value: identityClientId }
         { name: 'Intake__Legacy__BaseUrl', value: legacyBaseUrl }
+        { name: 'Intake__Api__BaseUrl', value: apiBaseUrl }
+        // Assessment (Milestone 3). The rule-based assessor and the local BM25 search run inside the app and need no
+        // other resource. To use Azure AI Search, run the ingestion tool, deploy an embedding model, then set
+        // Intake__PolicySearch to AzureAiSearch and Intake__Foundry__Endpoint / EmbeddingDeployment. The agent
+        // assessor (Intake__Assessor = Agent) also needs Intake__Foundry__Deployment. Neither model is in this template.
+        { name: 'Intake__Assessor', value: 'Rules' }
+        { name: 'Intake__PolicySearch', value: 'Local' }
+        { name: 'Intake__AzureAiSearch__Endpoint', value: searchEndpoint }
+        { name: 'Intake__AzureAiSearch__IndexName', value: 'policy-wordings' }
         { name: 'AZURE_CLIENT_ID', value: identityClientId }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
       ]

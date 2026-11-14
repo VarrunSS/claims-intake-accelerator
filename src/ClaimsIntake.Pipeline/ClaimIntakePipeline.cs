@@ -1,5 +1,7 @@
 using ClaimsIntake.Domain;
 using ClaimsIntake.Domain.Intake;
+using ClaimsIntake.Domain.Assessment;
+using ClaimsIntake.Pipeline.Assessment;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
@@ -16,7 +18,8 @@ public sealed record PipelineResult(ProposedClaim Claim, double Confidence)
 }
 
 /// <summary>
-/// The intake logic, free of any host: extract text, extract fields, look up the policy, validate, hand off.
+/// The intake logic, free of any host: extract text, extract fields, look up the policy, validate, assess against the
+/// policy wording (when an assessor is configured), hand off.
 /// The Azure Function, the local inbox watcher and the tests all call this class. It only proposes a claim;
 /// the write to the legacy system happens after a handler approves (ADR 0002).
 /// </summary>
@@ -26,7 +29,8 @@ public sealed partial class ClaimIntakePipeline(
     IPolicyLookup policyLookup,
     IClaimSink sink,
     TimeProvider time,
-    ILogger<ClaimIntakePipeline> logger)
+    ILogger<ClaimIntakePipeline> logger,
+    AssessmentRunner? assessment = null)
 {
     /// <summary>Largest document accepted, in bytes.</summary>
     public const int MaxDocumentBytes = 10 * 1024 * 1024;
@@ -64,7 +68,19 @@ public sealed partial class ClaimIntakePipeline(
             var issues = await RunAsync(PipelineTelemetry.StageValidate, id,
                 () => Task.FromResult(ClaimValidator.Validate(byName, policy, Today())), _ => confidence);
 
-            var proposed = new ProposedClaim(document.DocumentId, time.GetUtcNow(), fields, [.. issues], text.Pages);
+            ClaimAssessment? assessed = null;
+            IReadOnlyList<AuditEntry>? audit = null;
+            if (assessment is not null)
+            {
+                // Advice for the handler: it never changes the claim, and a failure here does not lose the claim.
+                var context = new AssessmentContext(ClaimIds.ForDocument(document.DocumentId), byName, Today());
+                var outcome = await RunAsync(PipelineTelemetry.StageAssess, id,
+                    () => assessment.RunAsync(context, cancellationToken), _ => confidence);
+                assessed = outcome.Assessment;
+                audit = outcome.AuditTrail;
+            }
+
+            var proposed = new ProposedClaim(document.DocumentId, time.GetUtcNow(), fields, [.. issues], text.Pages, assessed, audit);
 
             await RunAsync(PipelineTelemetry.StageHandoff, id, async () =>
             {

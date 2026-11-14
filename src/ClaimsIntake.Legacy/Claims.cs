@@ -39,6 +39,9 @@ public interface ILegacyClaimStore
     CreateOutcome Create(string idempotencyKey, CreateClaimRequest request, LegacyPolicy policy);
 
     LegacyClaim? Find(string reference);
+
+    /// <summary>The claims held for a policy, oldest first. Read-only; used by the duplicate check.</summary>
+    IReadOnlyList<LegacyClaim> ForPolicy(string policyNumber);
 }
 
 /// <summary>
@@ -85,6 +88,17 @@ public sealed class InMemoryLegacyClaimStore(TimeProvider time) : ILegacyClaimSt
         lock (_gate)
         {
             return _byReference.GetValueOrDefault(reference);
+        }
+    }
+
+    public IReadOnlyList<LegacyClaim> ForPolicy(string policyNumber)
+    {
+        var number = policyNumber.Trim();
+        lock (_gate)
+        {
+            return [.. _byReference.Values
+                .Where(c => c.PolicyNumber.Equals(number, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(c => c.CreatedAt).ThenBy(c => c.Reference, StringComparer.Ordinal)];
         }
     }
 

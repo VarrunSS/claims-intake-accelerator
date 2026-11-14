@@ -1,4 +1,5 @@
 using ClaimsIntake.Domain;
+using ClaimsIntake.Domain.Assessment;
 
 namespace ClaimsIntake.Api.Claims;
 
@@ -42,7 +43,8 @@ public sealed record ClaimDetail(
     string? DecidedBy,
     DateTimeOffset? DecidedAt,
     string? RejectionReason,
-    string? LegacyReference)
+    string? LegacyReference,
+    ClaimAssessment? Assessment = null)
 {
     public static ClaimDetail From(Claim claim) => new(
         claim.Id,
@@ -55,7 +57,26 @@ public sealed record ClaimDetail(
         claim.DecidedBy,
         claim.DecidedAt,
         claim.RejectionReason,
-        claim.LegacyReference);
+        claim.LegacyReference,
+        claim.Assessment);
+}
+
+/// <summary>One tool call in the audit trail of a claim.</summary>
+public sealed record AuditEntryDto(
+    string Tool, IReadOnlyDictionary<string, string> Arguments, string ResultSummary, double DurationMs, DateTimeOffset Timestamp, bool Succeeded)
+{
+    public static AuditEntryDto From(AuditEntry e) => new(e.Tool, e.Arguments, e.ResultSummary, e.DurationMs, e.Timestamp, e.Succeeded);
+}
+
+/// <summary>What the duplicate check needs to know about a claim: no names, no text.</summary>
+public sealed record ClaimHistoryItem(Guid Id, string? PolicyNumber, DateOnly? LossDate, decimal? AmountGbp, ClaimStatus Status)
+{
+    public static ClaimHistoryItem From(Claim claim)
+    {
+        var hasDate = ClaimValidator.TryParseDate(claim.Fields.GetValueOrDefault(ClaimFields.LossDate)?.Value, out var date);
+        var hasAmount = ClaimValidator.TryParseAmount(claim.Fields.GetValueOrDefault(ClaimFields.EstimatedAmount)?.Value, out var amount);
+        return new ClaimHistoryItem(claim.Id, claim.PolicyNumber, hasDate ? date : null, hasAmount ? amount : null, claim.Status);
+    }
 }
 
 public sealed record ApproveRequest(string? Reviewer);

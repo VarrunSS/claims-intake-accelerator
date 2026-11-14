@@ -91,6 +91,17 @@ The decision above stands. The only deviation is timing: the framework arrives w
 justify it, rather than for a single call. Package versions are pinned inline in each project file; the
 `Directory.Packages.props` option mentioned above was not adopted.
 
+## Milestone 3 note: the agent assessor
+
+The agent arrives as `AgentClaimAssessor` behind a new `IClaimAssessor` interface, not as a replacement for the
+extractor: it assesses a claim that has already been extracted and validated, using four tools. It uses
+`Microsoft.Agents.AI` **1.28.0**, pinned exactly in `ClaimsIntake.Pipeline.csproj`: a `ChatClientAgent` constructed
+over an `IChatClient`, with the tools registered as `AIFunction`s made by `AIFunctionFactory.Create` from plain
+methods on `ClaimTools`, and run with `agent.RunAsync`. The tool loop is capped at eight iterations on the client the
+agent is built over. The framework's tool-approval API was not used; the write boundary is that the tools hold no
+writer ([ADR 0006](0006-policy-wording-rag.md)). It is tested with a scripted `IChatClient` and has not run against a
+real model.
+
 ## Alternatives considered
 
 - **Semantic Kernel.** Mature, with a large body of examples, and still supported. Chosen if we needed

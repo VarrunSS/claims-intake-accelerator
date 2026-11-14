@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ClaimsIntake.Domain.Assessment;
 
 namespace ClaimsIntake.Domain.Intake;
 
@@ -15,12 +16,16 @@ namespace ClaimsIntake.Domain.Intake;
 /// <param name="Fields">The extracted fields.</param>
 /// <param name="Issues">Data-quality issues found by <see cref="ClaimValidator"/>.</param>
 /// <param name="SourcePages">The text read from the document, one entry per page.</param>
+/// <param name="Assessment">Coverage findings against the policy wording, when the pipeline ran an assessor.</param>
+/// <param name="AuditTrail">The tool calls made while assessing. The API stores them in its audit log.</param>
 public sealed record ProposedClaim(
     string DocumentId,
     DateTimeOffset ReceivedAt,
     IReadOnlyList<ExtractedField> Fields,
     IReadOnlyList<ValidationIssue> Issues,
-    IReadOnlyList<string> SourcePages)
+    IReadOnlyList<string> SourcePages,
+    ClaimAssessment? Assessment = null,
+    IReadOnlyList<AuditEntry>? AuditTrail = null)
 {
     /// <summary>JSON settings shared by every producer and consumer of the hand-off message.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)
@@ -34,7 +39,16 @@ public sealed record ProposedClaim(
     /// </summary>
     public Guid ClaimId => ClaimIds.ForDocument(DocumentId);
 
-    public Claim ToClaim() => new(ClaimId, DocumentId, ReceivedAt, Fields, Issues, SourcePages);
+    public Claim ToClaim()
+    {
+        var claim = new Claim(ClaimId, DocumentId, ReceivedAt, Fields, Issues, SourcePages);
+        if (Assessment is not null)
+        {
+            claim.AttachAssessment(Assessment);
+        }
+
+        return claim;
+    }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
 

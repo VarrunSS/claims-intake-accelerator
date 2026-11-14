@@ -24,6 +24,7 @@ public static class PipelineTelemetry
     public const string StageExtractFields = "extract_fields";
     public const string StageLookupPolicy = "lookup_policy";
     public const string StageValidate = "validate";
+    public const string StageAssess = "assess";
     public const string StageHandoff = "handoff";
 }
 

@@ -11,6 +11,8 @@
     <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
+    <PackageReference Include="Azure.Search.Documents" Version="11.7.0" />
+    <PackageReference Include="Microsoft.Agents.AI" Version="1.28.0" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
@@ -20,6 +22,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClaimsIntake.Domain\ClaimsIntake.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The policy wordings are the corpus for the local search. They flow to every app that references this project. -->
+    <Content Include="..\..\samples\policy-wordings\TM-PW-*.md" Link="policy-wordings\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

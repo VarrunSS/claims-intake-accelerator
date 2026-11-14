@@ -3,6 +3,9 @@ using Azure.AI.OpenAI;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
+using Azure.Search.Documents;
+using ClaimsIntake.Pipeline.Assessment;
+using ClaimsIntake.Pipeline.Policy;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
@@ -17,7 +20,8 @@ namespace ClaimsIntake.Pipeline;
 /// <summary>
 /// Chooses the implementations behind each seam from configuration under <c>Intake</c>:
 /// <c>TextExtractor</c> (Local or DocumentIntelligence), <c>ClaimExtractor</c> (Heuristic or Foundry) and
-/// <c>Sink</c> (Http or ServiceBus). The defaults need no Azure account. The Azure choices authenticate with
+/// <c>Sink</c> (Http or ServiceBus), <c>PolicySearch</c> (Local or AzureAiSearch) and <c>Assessor</c> (Rules, Agent or
+/// None). The defaults need no Azure account. The Azure choices authenticate with
 /// <see cref="DefaultAzureCredential"/>: a managed identity in Azure, your developer sign-in locally.
 /// No keys are read from configuration.
 /// </summary>
@@ -34,6 +38,8 @@ public static class ServiceCollectionExtensions
         var textExtractor = Choice(section, "TextExtractor", "Local", "DocumentIntelligence");
         var claimExtractor = Choice(section, "ClaimExtractor", "Heuristic", "Foundry");
         var sink = Choice(section, "Sink", "Http", "ServiceBus");
+        var policySearch = Choice(section, "PolicySearch", "Local", "AzureAiSearch");
+        var assessor = Choice(section, "Assessor", "Rules", "Agent", "None");
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential(
@@ -58,21 +64,76 @@ public static class ServiceCollectionExtensions
                 services.AddSingleton<IClaimExtractor, HeuristicClaimExtractor>();
                 break;
             default:
-                var foundryEndpoint = Endpoint(section, "Foundry:Endpoint", "Intake:ClaimExtractor is Foundry");
-                var deployment = Required(section, "Foundry:Deployment", "Intake:ClaimExtractor is Foundry");
-                services.AddSingleton<IChatClient>(sp => new AzureOpenAIClient(foundryEndpoint, sp.GetRequiredService<TokenCredential>())
-                    .GetChatClient(deployment)
-                    .AsIChatClient()
-                    .AsBuilder()
-                    .UseOpenTelemetry(sourceName: PipelineTelemetry.SourceName) // Prompts are not recorded unless EnableSensitiveData is set.
-                    .Build());
                 services.AddSingleton<IClaimExtractor, FoundryLlmClaimExtractor>();
                 break;
+        }
+
+        // One Azure OpenAI client serves the extractor, the agent assessor and the query embeddings.
+        var needsChat = claimExtractor == "Foundry" || assessor == "Agent";
+        var needsEmbeddings = policySearch == "AzureAiSearch";
+        if (needsChat || needsEmbeddings)
+        {
+            var foundryEndpoint = Endpoint(section, "Foundry:Endpoint", "Intake:ClaimExtractor is Foundry, Intake:Assessor is Agent or Intake:PolicySearch is AzureAiSearch");
+            services.AddSingleton(sp => new AzureOpenAIClient(foundryEndpoint, sp.GetRequiredService<TokenCredential>()));
+        }
+
+        if (needsChat)
+        {
+            var deployment = Required(section, "Foundry:Deployment", "Intake:ClaimExtractor is Foundry or Intake:Assessor is Agent");
+            services.AddSingleton<IChatClient>(sp => sp.GetRequiredService<AzureOpenAIClient>()
+                .GetChatClient(deployment)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseOpenTelemetry(sourceName: PipelineTelemetry.SourceName) // Prompts are not recorded unless EnableSensitiveData is set.
+                .Build());
         }
 
         var legacy = BaseAddress(section, "Legacy:BaseUrl", "http://localhost:5200/");
         services.AddHttpClient<IPolicyLookup, LegacyPolicyLookup>(client => client.BaseAddress = legacy)
             .AddStandardResilienceHandler();
+
+        // check_duplicate reads the legacy system and, when the API's address is known, the review store.
+        services.AddHttpClient<LegacyExistingClaims>(client => client.BaseAddress = legacy).AddStandardResilienceHandler();
+        var apiAddress = sink == "Http" || Optional(section, "Api:BaseUrl") is not null ? BaseAddress(section, "Api:BaseUrl", "http://localhost:5100/") : null;
+        if (apiAddress is not null)
+        {
+            services.AddHttpClient<ReviewStoreExistingClaims>(client => client.BaseAddress = apiAddress).AddStandardResilienceHandler();
+        }
+
+        services.AddSingleton<IExistingClaims>(sp => new CompositeExistingClaims(apiAddress is null
+            ? [sp.GetRequiredService<LegacyExistingClaims>()]
+            : [sp.GetRequiredService<LegacyExistingClaims>(), sp.GetRequiredService<ReviewStoreExistingClaims>()]));
+
+        switch (policySearch)
+        {
+            case "Local":
+                var wordings = Optional(section, "Wordings:Folder") ?? Path.Combine(AppContext.BaseDirectory, "policy-wordings");
+                services.AddSingleton<IPolicyWordingSearch>(_ => new Bm25PolicyWordingSearch(PolicyWordingParser.LoadFolder(wordings)));
+                break;
+            default:
+                var searchEndpoint = Endpoint(section, "AzureAiSearch:Endpoint", "Intake:PolicySearch is AzureAiSearch");
+                var indexName = Optional(section, "AzureAiSearch:IndexName") ?? PolicyWordingIndex.DefaultName;
+                var embeddingDeployment = Required(section, "Foundry:EmbeddingDeployment", "Intake:PolicySearch is AzureAiSearch");
+                services.AddSingleton(sp => new SearchClient(searchEndpoint, indexName, sp.GetRequiredService<TokenCredential>()));
+                services.AddSingleton<IClauseIndexQuery>(sp => new SearchClientClauseQuery(sp.GetRequiredService<SearchClient>()));
+                services.AddSingleton(sp => sp.GetRequiredService<AzureOpenAIClient>()
+                    .GetEmbeddingClient(embeddingDeployment)
+                    .AsIEmbeddingGenerator());
+                services.AddSingleton<IPolicyWordingSearch, AzureAiSearchPolicyWordingSearch>();
+                break;
+        }
+
+        switch (assessor)
+        {
+            case "Rules":
+                services.AddSingleton<IClaimAssessor, RuleBasedClaimAssessor>();
+                services.AddSingleton<AssessmentRunner>();
+                break;
+            case "Agent":
+                services.AddSingleton<IClaimAssessor, AgentClaimAssessor>();
+                services.AddSingleton<AssessmentRunner>();
+                break;
+        }
 
         switch (sink)
         {
@@ -91,7 +152,10 @@ public static class ServiceCollectionExtensions
                 break;
         }
 
-        services.AddSingleton<ClaimIntakePipeline>();
+        services.AddSingleton(sp => new ClaimIntakePipeline(
+            sp.GetRequiredService<IDocumentTextExtractor>(), sp.GetRequiredService<IClaimExtractor>(), sp.GetRequiredService<IPolicyLookup>(),
+            sp.GetRequiredService<IClaimSink>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>()));
         return services;
     }
 
@@ -103,7 +167,7 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static string Choice(IConfigurationSection section, string key, string defaultValue, string other)
+    private static string Choice(IConfigurationSection section, string key, string defaultValue, params string[] others)
     {
         var value = section[key];
         if (string.IsNullOrWhiteSpace(value))
@@ -116,9 +180,9 @@ public static class ServiceCollectionExtensions
             return defaultValue;
         }
 
-        return value.Equals(other, StringComparison.OrdinalIgnoreCase)
-            ? other
-            : throw new InvalidOperationException($"{SectionName}:{key} must be \"{defaultValue}\" or \"{other}\", not \"{value}\".");
+        return others.FirstOrDefault(o => value.Equals(o, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(
+                $"{SectionName}:{key} must be {string.Join(" or ", new[] { defaultValue }.Concat(others).Select(o => $"\"{o}\""))}, not \"{value}\".");
     }
 
     private static string? Optional(IConfigurationSection section, string key) =>

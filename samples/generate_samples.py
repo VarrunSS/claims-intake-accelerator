@@ -206,6 +206,63 @@ def main() -> None:
         ],
     )
 
+    # --- Milestone 3: samples that the policy wording check has something to find in. ---
+
+    form_pdf(
+        "09-flood-office-exclusion.pdf",
+        "Thames Mutual Insurance - Commercial claim notification",
+        [
+            "Policy number: TM-CP-100009",
+            "Insured: Greyfriars Bookbinders",
+            "Date of loss: 10 November 2026",
+            "",
+            "Description of loss: Heavy rain overnight overwhelmed the drains and surface water",
+            "flooded the ground-floor workshop. Paper stock and two guillotines were damaged.",
+            "",
+            "Estimated amount: £7,800",
+        ],
+        footer="Synthetic sample document. Policy TM-CP-100009 is an Office wording, which excludes flood (clause 4.1).",
+    )
+
+    form_pdf(
+        "10-unoccupied-late-notification.pdf",
+        "Thames Mutual Insurance - Commercial claim notification",
+        [
+            "Policy number: TM-CP-100008",
+            "Insured: Ashdown Veterinary Group",
+            "Date of loss: 5 October 2026",
+            "",
+            "Description of loss: A pipe burst in our closed branch surgery, which had been",
+            "unoccupied for 45 days while we refitted it. The floor and fittings were damaged.",
+            "",
+            "Estimated amount: £15,200",
+        ],
+        footer="Synthetic sample document. Unoccupied over 30 days (clause 4.3) and notified more than 30 days after the loss (clause 5.1).",
+    )
+
+    (OUT / "11-duplicate-water-damage-email.txt").write_text(
+        "From: Sam Brindle <sam@brindle-marsh.example>\n"
+        "To: claims@thamesmutual.example\n"
+        "Date: Fri, 13 Nov 2026 09:02:40 +0000\n"
+        "Subject: Chasing our water damage claim\n"
+        "\n"
+        "Hello,\n"
+        "\n"
+        "I have not heard back about the water damage at our workshop, so I am sending the details again\n"
+        "in case the first form did not arrive.\n"
+        "\n"
+        "Policy number: TM-CP-100001\n"
+        "Insured: Brindle & Marsh Joinery Ltd\n"
+        "Date of loss: 3 November 2026\n"
+        "Description of loss: A water pipe burst in the workshop store room and soaked the timber stock.\n"
+        "Estimated amount: £12,400\n"
+        "\n"
+        "Thanks,\n"
+        "Sam\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
     print(f"Wrote samples to {OUT}")
 
 

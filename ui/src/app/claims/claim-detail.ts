@@ -4,8 +4,17 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { ClaimsService } from './claims.service';
-import { confidenceBand, confidenceLabel, fieldLabel, segmentPage } from './helpers';
-import { ApiError, ClaimDetail, ClaimField } from './models';
+import {
+  confidenceBand,
+  confidenceLabel,
+  fieldLabel,
+  findingLabel,
+  findingNeedsAttention,
+  formatArguments,
+  routeLabel,
+  segmentPage,
+} from './helpers';
+import { ApiError, AuditEntry, ClaimDetail, ClaimField, CoverageFinding } from './models';
 
 const REVIEWER_KEY = 'claims-review.reviewer';
 
@@ -97,6 +106,91 @@ function saveReviewer(name: string): void {
         </section>
       </div>
 
+      @if (c.assessment; as a) {
+        <section aria-labelledby="assessment-heading" class="panel assessment">
+          <h2 id="assessment-heading">Coverage assessment</h2>
+          <p>
+            <span class="chip route-{{ a.route }}">{{ routeText(a.route) }}</span>
+            {{ a.routeReason }}
+          </p>
+          <p class="muted">
+            Advice only, from the {{ a.assessor }} assessor. It points at clauses of the policy wording; the decision is
+            yours.
+          </p>
+
+          @if (a.findings.length === 0) {
+            <p>No findings.</p>
+          } @else {
+            <ul class="findings">
+              @for (f of a.findings; track $index) {
+                <li class="finding" [class.attention]="needsAttention(f)">
+                  <span class="chip finding-{{ f.kind }}">{{ findingText(f) }}</span>
+                  {{ f.summary }}
+                  @if (f.relatedClaimRef) {
+                    <span class="muted">(existing claim {{ f.relatedClaimRef }})</span>
+                  }
+                  @for (cite of f.citations; track cite.wordingId + cite.clauseRef) {
+                    <details class="citation">
+                      <summary>
+                        <span class="clause-ref">{{ cite.wordingId }} clause {{ cite.clauseRef }}</span>
+                        {{ cite.heading }}
+                      </summary>
+                      <blockquote>{{ cite.text }}</blockquote>
+                    </details>
+                  }
+                </li>
+              }
+            </ul>
+          }
+
+          @if (a.notes.length > 0) {
+            <h3>About this assessment</h3>
+            <ul class="notes">
+              @for (n of a.notes; track $index) {
+                <li>{{ n }}</li>
+              }
+            </ul>
+          }
+
+          <details class="audit">
+            <summary>Audit trail ({{ audit().length }} tool calls)</summary>
+            @if (auditError()) {
+              <p class="muted">The audit trail could not be loaded.</p>
+            } @else if (audit().length === 0) {
+              <p class="muted">No tool calls were recorded for this claim.</p>
+            } @else {
+              <table class="audit-table">
+                <caption class="muted">
+                  Every tool call made while assessing this claim. Arguments are reduced to ids and lengths.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Tool</th>
+                    <th scope="col">Arguments</th>
+                    <th scope="col">Result</th>
+                    <th scope="col">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (e of audit(); track $index) {
+                    <tr [class.failed]="!e.succeeded">
+                      <td>{{ e.timestamp | date: 'HH:mm:ss' }}</td>
+                      <td>
+                        <code>{{ e.tool }}</code>
+                      </td>
+                      <td>{{ args(e) }}</td>
+                      <td>{{ e.succeeded ? e.resultSummary : 'Failed: ' + e.resultSummary }}</td>
+                      <td>{{ e.durationMs }} ms</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </details>
+        </section>
+      }
+
       <section aria-labelledby="decision-heading" class="panel decision">
         <h2 id="decision-heading">Decision</h2>
 
@@ -167,6 +261,8 @@ export class ClaimDetailPage {
   protected readonly message = signal('');
   protected readonly busy = signal(false);
   protected readonly selected = signal<ClaimField | null>(null);
+  protected readonly audit = signal<AuditEntry[]>([]);
+  protected readonly auditError = signal(false);
   protected readonly reviewer = signal(readReviewer());
   protected reason = '';
 
@@ -181,10 +277,42 @@ export class ClaimDetailPage {
         next: (c) => {
           this.claim.set(c);
           this.loadError.set(null);
+          this.loadAudit(c);
         },
         error: (e: ApiError) => this.loadError.set(e),
       });
     });
+  }
+
+  /** The audit trail is secondary: if it cannot be loaded, the rest of the page still works. */
+  private loadAudit(c: ClaimDetail): void {
+    if (!c.assessment) {
+      this.audit.set([]);
+      return;
+    }
+    this.service.audit(c.id).subscribe({
+      next: (entries) => {
+        this.audit.set(entries);
+        this.auditError.set(false);
+      },
+      error: () => this.auditError.set(true),
+    });
+  }
+
+  protected routeText(route: string) {
+    return routeLabel(route);
+  }
+
+  protected findingText(f: CoverageFinding) {
+    return findingLabel(f.kind);
+  }
+
+  protected needsAttention(f: CoverageFinding) {
+    return findingNeedsAttention(f.kind);
+  }
+
+  protected args(e: AuditEntry) {
+    return formatArguments(e.arguments);
   }
 
   protected segments(pageIndex: number) {

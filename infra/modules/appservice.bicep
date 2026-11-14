@@ -19,6 +19,9 @@ param keyVaultUri string
 @description('Base address of the legacy claims system, where approved claims are written.')
 param legacyBaseUrl string
 
+@description('Table endpoint of the storage account that holds the audit log, for example https://sthost123.table.core.windows.net.')
+param auditTableEndpoint string
+
 @description('Queue the API reads proposed claims from.')
 param reviewQueueName string = 'claims-for-review'
 param applicationInsightsConnectionString string
@@ -73,6 +76,8 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Intake__ServiceBus__FullyQualifiedNamespace', value: serviceBusNamespace }
         { name: 'Intake__ServiceBus__QueueName', value: reviewQueueName }
         { name: 'Intake__ManagedIdentityClientId', value: identityClientId }
+        { name: 'Audit__Table__Endpoint', value: auditTableEndpoint }
+        { name: 'Audit__Table__Name', value: 'auditlog' }
         { name: 'Telemetry__Exporter', value: 'console' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
       ]

@@ -26,7 +26,7 @@ named handler approves the claim in the review screen.
 
 In practice:
 
-- The `create_claim` tool does not call the legacy system. It validates the arguments and stores a **proposed
+- The `create_claim` tool (named `propose_claim` from Milestone 3, [ADR 0006](0006-policy-wording-rag.md)) does not call the legacy system. It validates the arguments and stores a **proposed
   claim** with status `NeedsReview`. It returns "pending approval" to the agent.
 - The review API exposes `POST /claims/{id}/approve` and `POST /claims/{id}/reject`. Both require an identified
   reviewer. Rejection requires a reason.

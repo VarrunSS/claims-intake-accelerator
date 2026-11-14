@@ -131,7 +131,7 @@ public class HandoffAndLookupTests
 
         var policy = await Lookup(handler).FindAsync(" tm-cp-100001 ", CancellationToken.None);
 
-        Assert.Equal(new PolicyReference("TM-CP-100001", "Brindle & Marsh Joinery Ltd", new(2026, 1, 1), new(2026, 12, 31)), policy);
+        Assert.Equal(new PolicyReference("TM-CP-100001", "Brindle & Marsh Joinery Ltd", new(2026, 1, 1), new(2026, 12, 31), null, 500m), policy);
         Assert.Equal("http://legacy.test/policies/tm-cp-100001", handler.Requests.Single().RequestUri!.ToString());
     }
 

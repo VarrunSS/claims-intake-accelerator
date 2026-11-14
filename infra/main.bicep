@@ -21,6 +21,13 @@ param location string = 'uksouth'
 @description('Turn off only in throwaway environments. Purge protection cannot be removed once enabled.')
 param enableKeyVaultPurgeProtection bool = true
 
+@allowed([
+  'free'
+  'basic'
+])
+@description('Azure AI Search tier. free costs nothing but there is one per subscription and it has no SLA; basic is about 70 pounds a month.')
+param searchSku string = 'free'
+
 var tags = {
   'azd-env-name': environmentName
   workload: 'claims-intake-accelerator'
@@ -37,6 +44,7 @@ var names = {
   applicationInsights: 'appi-${environmentName}-${take(token, 6)}'
   inboxStorage: 'stinbox${take(token, 13)}'
   hostStorage: 'sthost${take(token, 13)}'
+  search: 'srch-${environmentName}-${take(token, 6)}'
   serviceBus: 'sb-${environmentName}-${take(token, 6)}'
   keyVault: 'kv-${take(environmentName, 8)}-${take(token, 8)}'
   functionPlan: 'plan-func-${environmentName}-${take(token, 6)}'
@@ -49,6 +57,8 @@ var names = {
 var documentsQueueName = 'claim-documents'
 // The legacy mock's address is known from its name, so the Function App and the API can be told it up front.
 var legacyBaseUrl = 'https://${names.legacy}.azurewebsites.net'
+// The same for the API: the pipeline reads it for the duplicate check.
+var apiBaseUrl = 'https://${names.api}.azurewebsites.net'
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: names.resourceGroup
@@ -100,6 +110,21 @@ module hostStorage 'modules/storage.bicep' = {
     containerNames: [
       'app-package'
     ]
+    // Audit log of agent tool calls. The identity already has Storage Table Data Contributor on this account.
+    tableNames: [
+      'auditlog'
+    ]
+  }
+}
+
+module search 'modules/search.bicep' = {
+  name: 'search'
+  scope: rg
+  params: {
+    name: names.search
+    location: location
+    tags: tags
+    sku: searchSku
   }
 }
 
@@ -140,6 +165,8 @@ module functionApp 'modules/functionapp.bicep' = {
     serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     documentsQueueName: documentsQueueName
     legacyBaseUrl: legacyBaseUrl
+    apiBaseUrl: apiBaseUrl
+    searchEndpoint: search.outputs.endpoint
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
   }
 }
@@ -158,6 +185,7 @@ module appService 'modules/appservice.bicep' = {
     serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     keyVaultUri: keyVault.outputs.uri
     legacyBaseUrl: legacyBaseUrl
+    auditTableEndpoint: hostStorage.outputs.tableEndpoint
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
   }
 }
@@ -172,6 +200,7 @@ module roles 'modules/roles.bicep' = {
     serviceBusName: serviceBus.outputs.name
     keyVaultName: keyVault.outputs.name
     applicationInsightsName: monitoring.outputs.applicationInsightsName
+    searchServiceName: search.outputs.name
   }
 }
 
@@ -183,6 +212,8 @@ output AZURE_USER_ASSIGNED_IDENTITY_CLIENT_ID string = identity.outputs.clientId
 output INBOX_STORAGE_ACCOUNT string = inboxStorage.outputs.name
 output SERVICE_BUS_NAMESPACE string = serviceBus.outputs.fullyQualifiedNamespace
 output KEY_VAULT_URI string = keyVault.outputs.uri
+output SEARCH_ENDPOINT string = search.outputs.endpoint
+output AUDIT_TABLE_ENDPOINT string = hostStorage.outputs.tableEndpoint
 output FUNCTION_APP_NAME string = functionApp.outputs.name
 output API_URI string = appService.outputs.apiUri
 output LEGACY_URI string = appService.outputs.legacyUri

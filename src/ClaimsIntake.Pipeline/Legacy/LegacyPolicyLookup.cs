@@ -19,7 +19,7 @@ public sealed class LegacyPolicyLookup(HttpClient client) : IPolicyLookup
 {
     private const int MaxNumberLength = 40;
 
-    private sealed record PolicyDto(string Number, string InsuredName, DateOnly PeriodStart, DateOnly PeriodEnd);
+    private sealed record PolicyDto(string Number, string InsuredName, DateOnly PeriodStart, DateOnly PeriodEnd, string? WordingId = null, decimal? ExcessGbp = null);
 
     public async Task<PolicyReference?> FindAsync(string policyNumber, CancellationToken cancellationToken)
     {
@@ -41,7 +41,7 @@ public sealed class LegacyPolicyLookup(HttpClient client) : IPolicyLookup
             response.EnsureSuccessStatusCode();
             var dto = await response.Content.ReadFromJsonAsync<PolicyDto>(cancellationToken)
                 ?? throw new LegacySystemUnavailableException("The legacy system returned an empty policy.");
-            return new PolicyReference(dto.Number, dto.InsuredName, dto.PeriodStart, dto.PeriodEnd);
+            return new PolicyReference(dto.Number, dto.InsuredName, dto.PeriodStart, dto.PeriodEnd, dto.WordingId, dto.ExcessGbp);
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException or ArgumentException)
         {

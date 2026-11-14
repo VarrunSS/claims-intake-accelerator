@@ -1,0 +1,18 @@
+From: Sam Brindle <sam@brindle-marsh.example>
+To: claims@thamesmutual.example
+Date: Fri, 13 Nov 2026 09:02:40 +0000
+Subject: Chasing our water damage claim
+
+Hello,
+
+I have not heard back about the water damage at our workshop, so I am sending the details again
+in case the first form did not arrive.
+
+Policy number: TM-CP-100001
+Insured: Brindle & Marsh Joinery Ltd
+Date of loss: 3 November 2026
+Description of loss: A water pipe burst in the workshop store room and soaked the timber stock.
+Estimated amount: £12,400
+
+Thanks,
+Sam

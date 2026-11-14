@@ -27,13 +27,15 @@ internal sealed class FakePolicyLookup(params PolicyReference[] policies) : IPol
     public List<string> Lookups { get; } = [];
 
     public static FakePolicyLookup Seeded() => new(
-        new PolicyReference("TM-CP-100001", "Brindle & Marsh Joinery Ltd", new(2026, 1, 1), new(2026, 12, 31)),
-        new PolicyReference("TM-CP-100002", "Kestrel Print & Packaging Ltd", new(2026, 3, 1), new(2027, 2, 28)),
-        new PolicyReference("TM-CP-100003", "Harcourt Dental Practice", new(2026, 6, 15), new(2027, 6, 14)),
-        new PolicyReference("TM-CP-100004", "Lowther Fabrication Works Ltd", new(2025, 11, 1), new(2026, 10, 31)),
-        new PolicyReference("TM-CP-100005", "Pemberton Road Haulage Ltd", new(2026, 4, 1), new(2027, 3, 31)),
-        new PolicyReference("TM-CP-100006", "Wren & Co Estate Agents", new(2026, 2, 1), new(2027, 1, 31)),
-        new PolicyReference("TM-CP-100007", "Tideway Catering Supplies Ltd", new(2026, 9, 1), new(2027, 8, 31)));
+        new PolicyReference("TM-CP-100001", "Brindle & Marsh Joinery Ltd", new(2026, 1, 1), new(2026, 12, 31), "TM-PW-CC-2026", 500m),
+        new PolicyReference("TM-CP-100002", "Kestrel Print & Packaging Ltd", new(2026, 3, 1), new(2027, 2, 28), "TM-PW-CC-2026", 1_000m),
+        new PolicyReference("TM-CP-100003", "Harcourt Dental Practice", new(2026, 6, 15), new(2027, 6, 14), "TM-PW-CC-2026", 250m),
+        new PolicyReference("TM-CP-100004", "Lowther Fabrication Works Ltd", new(2025, 11, 1), new(2026, 10, 31), "TM-PW-EN-2026", 2_500m),
+        new PolicyReference("TM-CP-100005", "Pemberton Road Haulage Ltd", new(2026, 4, 1), new(2027, 3, 31), "TM-PW-CC-2026", 750m),
+        new PolicyReference("TM-CP-100006", "Wren & Co Estate Agents", new(2026, 2, 1), new(2027, 1, 31), "TM-PW-OF-2026", 250m),
+        new PolicyReference("TM-CP-100007", "Tideway Catering Supplies Ltd", new(2026, 9, 1), new(2027, 8, 31), "TM-PW-CCF-2026", 500m),
+        new PolicyReference("TM-CP-100008", "Ashdown Veterinary Group", new(2026, 1, 15), new(2027, 1, 14), "TM-PW-CC-2026", 500m),
+        new PolicyReference("TM-CP-100009", "Greyfriars Bookbinders", new(2025, 12, 1), new(2026, 11, 30), "TM-PW-OF-2026", 100m));
 
     public Task<PolicyReference?> FindAsync(string policyNumber, CancellationToken cancellationToken)
     {

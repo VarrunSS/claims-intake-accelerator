@@ -33,7 +33,7 @@ public class IntakeTests
         [.. Enumerable.Range(0, pages).Select(i => $"Page {i + 1}\nPolicy number: TM-CP-100001")]);
 
     private static ClaimIntakeService Service(InMemoryClaimRepository? repository = null) =>
-        new(repository ?? new InMemoryClaimRepository(), NullLogger<ClaimIntakeService>.Instance);
+        new(repository ?? new InMemoryClaimRepository(), new ClaimsIntake.Domain.Assessment.InMemoryAuditLog(), NullLogger<ClaimIntakeService>.Instance);
 
     // ----- The HTTP route (local mode) -----
 
@@ -192,7 +192,7 @@ public class IntakeTests
     public async Task The_logs_for_an_accepted_claim_carry_ids_and_counts_but_not_claim_text()
     {
         var logger = new CapturingLogger();
-        var service = new ClaimIntakeService(new InMemoryClaimRepository(), logger);
+        var service = new ClaimIntakeService(new InMemoryClaimRepository(), new ClaimsIntake.Domain.Assessment.InMemoryAuditLog(), logger);
 
         await service.AcceptAsync(Proposed(), CancellationToken.None);
         await service.AcceptJsonAsync("{ Brindle & Marsh not json", CancellationToken.None);

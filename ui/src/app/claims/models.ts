@@ -34,6 +34,44 @@ export interface ClaimIssue {
   message: string;
 }
 
+export type FindingKind = 'CoverageClause' | 'PossibleExclusion' | 'NotificationBreach' | 'PossibleDuplicate';
+
+export type ReviewRoute = 'StraightToHandler' | 'SeniorReview';
+
+/** A clause of a policy wording, as the wording search returned it. */
+export interface ClauseCitation {
+  wordingId: string;
+  clauseRef: string;
+  heading: string;
+  text: string;
+}
+
+export interface CoverageFinding {
+  kind: FindingKind;
+  summary: string;
+  citations: ClauseCitation[];
+  relatedClaimRef: string | null;
+}
+
+/** Advice from the assessor. A handler decides. */
+export interface ClaimAssessment {
+  assessor: string;
+  findings: CoverageFinding[];
+  route: ReviewRoute;
+  routeReason: string;
+  notes: string[];
+}
+
+/** One tool call made while the claim was assessed. Arguments are redacted by the API. */
+export interface AuditEntry {
+  tool: string;
+  arguments: Record<string, string>;
+  resultSummary: string;
+  durationMs: number;
+  timestamp: string;
+  succeeded: boolean;
+}
+
 export interface ClaimDetail {
   id: string;
   sourceDocumentId: string;
@@ -46,6 +84,7 @@ export interface ClaimDetail {
   decidedAt: string | null;
   rejectionReason: string | null;
   legacyReference: string | null;
+  assessment?: ClaimAssessment | null;
 }
 
 /** A failed API call, reduced to what the handler needs to see. */

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using ClaimsIntake.Api;
+using ClaimsIntake.Api.Audit;
 using ClaimsIntake.Api.Claims;
 using ClaimsIntake.Api.Intake;
 using ClaimsIntake.Api.Legacy;
@@ -16,6 +17,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 // In-memory store. It sits behind IClaimRepository so a durable store can replace it without touching the endpoints.
 builder.Services.AddSingleton<IClaimRepository, InMemoryClaimRepository>();
+
+// Audit trail of tool calls: in memory locally, Azure Table Storage when Audit:Table:Endpoint is set.
+builder.Services.AddAuditLog(builder.Configuration);
 
 // Approval writes to the legacy system with the claim id as idempotency key, so retries are safe and the
 // standard resilience handler (timeouts, retries, circuit breaker) may repeat the POST.

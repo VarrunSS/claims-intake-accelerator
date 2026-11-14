@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
-import { ApiError, ClaimDetail, ClaimSummary } from './models';
+import { ApiError, AuditEntry, ClaimDetail, ClaimSummary } from './models';
 
 /** Turns an HTTP failure (RFC 7807 problem JSON, or no response at all) into an ApiError. */
 export function toApiError(error: unknown): ApiError {
@@ -37,6 +37,11 @@ export class ClaimsService {
 
   get(id: string): Observable<ClaimDetail> {
     return this.http.get<ClaimDetail>(`${this.base}/${encodeURIComponent(id)}`).pipe(this.mapError());
+  }
+
+  /** The tool calls made while the claim was assessed, oldest first. */
+  audit(id: string): Observable<AuditEntry[]> {
+    return this.http.get<AuditEntry[]>(`${this.base}/${encodeURIComponent(id)}/audit`).pipe(this.mapError());
   }
 
   approve(id: string, reviewer: string): Observable<ClaimDetail> {

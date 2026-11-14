@@ -23,6 +23,15 @@ describe('ClaimsService', () => {
     req.flush([]);
   });
 
+  it('reads the audit trail of a claim', () => {
+    let entries: unknown;
+    service.audit('abc').subscribe((e) => (entries = e));
+    const req = http.expectOne('/api/claims/abc/audit');
+    expect(req.request.method).toBe('GET');
+    req.flush([{ tool: 'lookup_policy', arguments: {}, resultSummary: 'found', durationMs: 1, timestamp: '2026-11-14T09:00:00Z', succeeded: true }]);
+    expect(entries).toHaveLength(1);
+  });
+
   it('posts the reviewer when approving', () => {
     service.approve('abc', 'a.patel').subscribe();
     const req = http.expectOne('/api/claims/abc/approve');

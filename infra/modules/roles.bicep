@@ -10,6 +10,9 @@ param serviceBusName string
 param keyVaultName string
 param applicationInsightsName string
 
+@description('Name of the Azure AI Search service that holds the policy wording index.')
+param searchServiceName string
+
 var roleIds = {
   storageBlobDataOwner: 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
   storageQueueDataContributor: '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
@@ -18,6 +21,7 @@ var roleIds = {
   serviceBusDataReceiver: '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0'
   keyVaultSecretsUser: '4633458b-17de-408a-b874-0445c86b69e6'
   monitoringMetricsPublisher: '3913510d-42f4-4e42-8a64-420c390055eb'
+  searchIndexDataReader: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
 }
 
 resource hostStorage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
@@ -38,6 +42,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: applicationInsightsName
+}
+
+resource searchService 'Microsoft.Search/searchServices@2023-11-01' existing = {
+  name: searchServiceName
 }
 
 // Function host: state, deployment package and the internal queues and tables the host uses.
@@ -120,5 +128,18 @@ resource metricsPublisher 'Microsoft.Authorization/roleAssignments@2022-04-01' =
     principalId: principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.monitoringMetricsPublisher)
+  }
+}
+
+// The pipeline queries the policy wording index (search_policy_wording). Read-only: loading the index is done by the
+// ingestion tool under a developer's own sign-in, which needs Search Service Contributor and Search Index Data
+// Contributor on this service. Those are deliberately not given to the runtime identity.
+resource searchReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(searchService.id, principalId, roleIds.searchIndexDataReader)
+  scope: searchService
+  properties: {
+    principalId: principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleIds.searchIndexDataReader)
   }
 }

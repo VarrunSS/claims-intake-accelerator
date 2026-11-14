@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClaimsIntake.Pipeline\ClaimsIntake.Pipeline.csproj" />
     <ProjectReference Include="..\..\src\ClaimsIntake.Functions\ClaimsIntake.Functions.csproj" />
+    <ProjectReference Include="..\..\src\ClaimsIntake.Ingestion\ClaimsIntake.Ingestion.csproj" />
+    <ProjectReference Include="..\..\src\ClaimsIntake.Legacy\ClaimsIntake.Legacy.csproj" />
   </ItemGroup>
 
   <ItemGroup>

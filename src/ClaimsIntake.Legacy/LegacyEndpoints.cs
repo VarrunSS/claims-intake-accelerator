@@ -11,6 +11,7 @@ public static class LegacyEndpoints
         app.MapGet("/policies/{number}", GetPolicy);
         app.MapPost("/claims", CreateClaim);
         app.MapGet("/claims/{reference}", GetClaim);
+        app.MapGet("/claims", ListClaims);
         return app;
     }
 
@@ -28,6 +29,17 @@ public static class LegacyEndpoints
         return claim is null
             ? Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Claim not found", detail: "No claim with that reference.")
             : Results.Ok(claim);
+    }
+
+    // GET /claims?policyNumber=TM-CP-100001: what the legacy system already holds for a policy (the duplicate check).
+    private static IResult ListClaims(string? policyNumber, ILegacyClaimStore claims)
+    {
+        if (string.IsNullOrWhiteSpace(policyNumber) || policyNumber.Length > 40)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["policyNumber"] = ["A policy number is required."] });
+        }
+
+        return Results.Ok(claims.ForPolicy(policyNumber));
     }
 
     private static IResult CreateClaim(

@@ -23,6 +23,9 @@ public class SampleDocumentTests
     [InlineData("01-water-damage-clean.pdf", "TM-CP-100001", "2026-11-03", "£12,500")]
     [InlineData("02-theft-clean.pdf", "TM-CP-100002", "2026-10-21", "£8,750.00")]
     [InlineData("07-broker-email.eml", "TM-CP-100005", "2026-11-10", "£5,400")]
+    [InlineData("09-flood-office-exclusion.pdf", "TM-CP-100009", "2026-11-10", "£7,800")]
+    [InlineData("10-unoccupied-late-notification.pdf", "TM-CP-100008", "2026-10-05", "£15,200")]
+    [InlineData("11-duplicate-water-damage-email.txt", "TM-CP-100001", "2026-11-03", "£12,400")]
     public async Task A_clean_document_gives_a_claim_with_no_issues(string sample, string policy, string lossDate, string amount)
     {
         var result = await Run(sample);
@@ -112,6 +115,6 @@ public class SampleDocumentTests
     public void Every_sample_has_a_test()
     {
         var samples = Directory.EnumerateFiles(Docs.SamplesFolder).Select(Path.GetFileName).Order().ToArray();
-        Assert.Equal(8, samples.Length);
+        Assert.Equal(11, samples.Length);
     }
 }

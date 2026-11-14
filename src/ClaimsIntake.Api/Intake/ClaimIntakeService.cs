@@ -2,6 +2,7 @@ using System.Text.Json;
 using ClaimsIntake.Api.Claims;
 using ClaimsIntake.Api.Telemetry;
 using ClaimsIntake.Domain;
+using ClaimsIntake.Domain.Assessment;
 using ClaimsIntake.Domain.Intake;
 
 namespace ClaimsIntake.Api.Intake;
@@ -24,7 +25,7 @@ public sealed record IntakeResult(IntakeOutcome Outcome, Claim? Claim = null, IR
 /// Accepts proposed claims from the intake pipeline, whether they arrive over HTTP (local mode) or from
 /// Service Bus (Azure). Both routes end here, so both behave the same.
 /// </summary>
-public sealed class ClaimIntakeService(IClaimRepository repository, ILogger<ClaimIntakeService> logger)
+public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog audit, ILogger<ClaimIntakeService> logger)
 {
     public const int MaxFields = 20;
     public const int MaxIssues = 50;
@@ -32,6 +33,9 @@ public sealed class ClaimIntakeService(IClaimRepository repository, ILogger<Clai
     public const int MaxTotalCharacters = 2_000_000;
     public const int MaxValueLength = 4_000;
     public const int MaxDocumentIdLength = 300;
+    public const int MaxAuditEntries = 100;
+    public const int MaxFindings = 30;
+    public const int MaxCitationsPerFinding = 10;
 
     public async Task<IntakeResult> AcceptAsync(ProposedClaim proposed, CancellationToken cancellationToken)
     {
@@ -59,6 +63,13 @@ public sealed class ClaimIntakeService(IClaimRepository repository, ILogger<Clai
         {
             // Another delivery of the same document won the race.
             return Duplicate((await repository.GetAsync(claim.Id, cancellationToken))!);
+        }
+
+        // The tool calls made while the claim was assessed. Only a claim that was accepted gets its trail stored, so a
+        // redelivered message does not repeat it. The entries are re-attributed to this claim.
+        foreach (var entry in proposed.AuditTrail ?? [])
+        {
+            await audit.AppendAsync(entry with { ClaimId = claim.Id }, cancellationToken);
         }
 
         ApiMetrics.IntakeClaims.Add(1, new KeyValuePair<string, object?>("outcome", "accepted"));
@@ -121,6 +132,22 @@ public sealed class ClaimIntakeService(IClaimRepository repository, ILogger<Clai
         if (proposed.SourcePages.Count > MaxPages || proposed.SourcePages.Sum(p => (long)p.Length) > MaxTotalCharacters)
         {
             problems.Add($"sourcePages must hold at most {MaxPages} pages and {MaxTotalCharacters} characters in all.");
+        }
+
+        if (proposed.AuditTrail is { } trail
+            && (trail.Count > MaxAuditEntries
+                || trail.Any(e => string.IsNullOrWhiteSpace(e.Tool) || e.Tool.Length > 80 || e.ResultSummary is not { Length: <= MaxValueLength }
+                    || e.Arguments is null || e.Arguments.Count > 12 || e.Arguments.Any(a => a.Key.Length > 80 || a.Value is not { Length: <= 300 }))))
+        {
+            problems.Add($"auditTrail must hold at most {MaxAuditEntries} well-formed entries.");
+        }
+
+        if (proposed.Assessment is { } assessment
+            && (assessment.Findings is null || assessment.Notes is null || assessment.Findings.Count > MaxFindings
+                || assessment.Findings.Any(f => f.Citations is null || f.Citations.Count > MaxCitationsPerFinding
+                    || f.Summary is not { Length: <= MaxValueLength } || f.Citations.Any(c => c.Text is not { Length: <= MaxValueLength }))))
+        {
+            problems.Add($"assessment must hold at most {MaxFindings} well-formed findings.");
         }
 
         return problems;

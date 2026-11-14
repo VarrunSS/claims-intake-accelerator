@@ -12,14 +12,14 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestones 1 and 2 are done. The rest is planned and not started. Everything runs locally with only the .NET
-SDK (and Node for the UI); **the Azure path of Milestone 2 has not been run** (see below).
+Milestones 1 to 3 are done. The rest is planned and not started. Everything runs locally with only the .NET
+SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been run** (see below).
 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Discovery and skeleton: docs, domain rules, review API, legacy mock, Function stub, Bicep, CI | **Done** |
 | 2 | Happy path: document in, extracted and validated claim in the Angular review UI, approval writes to the legacy system | **Done locally. Azure path compiled and unit-tested only, never run** |
-| 3 | RAG and legacy tools: policy wording search with citations, write-back after approval, audit log | Not started |
+| 3 | RAG and legacy tools: policy wording search with citations, agent tools, coverage assessment, audit log | **Done locally. Azure path (AI Search, agent on a real model, Table Storage) compiled and unit-tested against fakes only, never run** |
 | 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, unreadable-scan handling | Not started |
 | 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | Not started |
 | 6 | Security and observability: split identities, PII redaction, threat model, App Insights workbook | Not started |
@@ -30,11 +30,12 @@ installed when Milestones 1 and 2 were written, so the Bicep in `infra/` has nev
 `what-if` or a deployment, and the Function App has never been started. Expect fixes on the first real
 deployment. The .NET code is built and tested; see below.
 
-**Milestone 2 was built without any Azure or AI access** (no subscription, no model keys, no Docker). Every
+**Milestones 2 and 3 were built without any Azure or AI access** (no subscription, no model keys, no Docker). Every
 external dependency is behind an interface with a local implementation, which is what runs by default and in
 the tests, and an Azure implementation, chosen by configuration ([ADR 0005](docs/adr/0005-local-development-mode.md)).
-The Azure implementations (Document Intelligence, the Foundry model, Service Bus, the Function) compile and are
-unit-tested against fakes. They have never talked to the real services.
+The Azure implementations (Document Intelligence, the Foundry model, Service Bus, the Function, and in Milestone 3
+Azure AI Search, the Agent Framework assessor and the Table Storage audit log) compile and are unit-tested against
+fakes. They have never talked to the real services.
 
 ## Architecture
 
@@ -56,6 +57,7 @@ Design decisions are in [docs/adr](docs/adr):
 3. [Managed identity, no keys](docs/adr/0003-managed-identity-no-keys.md)
 4. [Microsoft Agent Framework for the agent](docs/adr/0004-dotnet-agent-framework.md)
 5. [Local development mode](docs/adr/0005-local-development-mode.md)
+6. [Policy wording search, agent tools and the citation guard](docs/adr/0006-policy-wording-rag.md)
 
 Customer documents: [discovery](docs/00-discovery.md) and [success metrics](docs/01-success-metrics.md).
 
@@ -100,6 +102,31 @@ Agent Framework. The single extraction call in this milestone needs no tools or 
 not in the document has its confidence capped at 0.5, and a malformed reply fails the document instead of
 producing an empty claim.
 
+### Milestone 3: RAG and legacy tools
+
+The pipeline now checks each claim against the policy wording it is written on and hands the handler an assessment:
+the clauses that matter, quoted, a recommended route, and an audit trail of every tool call. It is advice. A handler
+still approves or rejects every claim, and nothing in this milestone writes to the legacy system
+([ADR 0002](docs/adr/0002-human-approval-for-writes.md), [ADR 0006](docs/adr/0006-policy-wording-rag.md)).
+
+| Piece | What it does |
+|---|---|
+| `samples/policy-wordings/` | Four synthetic Thames Mutual wordings (Commercial Combined, with flood extension, Office, Engineering) in markdown, with numbered sections and clauses: insuring clause, definitions, insured perils, exclusions (flood, wear and tear, unoccupied over 30 days), conditions (notification period) and excess. Each seeded legacy policy points at one through `wordingId`. |
+| `IPolicyWordingSearch` | Returns ranked clauses (wording id, clause reference, section, heading, text, score). Local: clause-level chunking and BM25, written in full, deterministic. Azure: `AzureAiSearchPolicyWordingSearch`, a hybrid keyword and vector query with `DefaultAzureCredential`, embeddings through `IEmbeddingGenerator`. The index schema is in code (`PolicyWordingIndex`) and `src/ClaimsIntake.Ingestion` chunks, embeds and uploads the wordings (`--dry-run` needs no Azure). |
+| `ClaimTools` | The four agent tools as plain C# methods: `lookup_policy`, `search_policy_wording`, `check_duplicate` (same policy and loss date, amount within 10 per cent, in the review store or the legacy system) and `propose_claim`, which only records a proposal and has no way to write. |
+| `IClaimAssessor` | `RuleBasedClaimAssessor` (local, deterministic) calls the same tools in a fixed order. `AgentClaimAssessor` uses Microsoft Agent Framework 1.28.0 over `IChatClient` with the tools registered as `AIFunction`s. Chosen by `Intake:Assessor` (`Rules`, `Agent`, `None`) and run in `ClaimIntakePipeline` after validation. |
+| Citation guard | A finding may only cite a clause that `search_policy_wording` returned in that run. Anything else is removed, flagged and sends the claim to senior review; the clause text shown is the wording's, never the model's. |
+| Audit log | Every tool call: claim id, tool, redacted arguments (ids, dates and the length of free text), result summary, duration, time. `GET /claims/{id}/audit`. In memory locally, Azure Table Storage when `Audit:Table:Endpoint` is set. |
+| Telemetry | A span per tool call (`tool.<name>`) and one for the assessment. Ids, durations and counts only. |
+| `ui/` | The claim detail shows each finding with its cited clause (expandable), the recommended route and the audit trail. |
+| `samples/` | Three more documents: a flood claim against a wording that excludes flood, a claim for a building unoccupied for 45 days that was also notified late, and a chasing email that duplicates sample 01. |
+
+**What the local assessor catches, and does not.** It matches keywords in the loss description to a handful of
+causes (fire, flood, theft, storm, impact, refrigeration failure, breakdown, escape of water) and three exclusions,
+and it reads the notification period from the wording. "The river flooded the yard" is flood; "water came in
+through the roof" is escape of water. It will miss what its patterns do not name, and says so in the assessment's
+notes. It is the baseline the agent is compared with in Milestone 4, not a substitute for it.
+
 ## Quickstart
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), and [Node.js](https://nodejs.org) 22 or later
@@ -107,8 +134,8 @@ for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test            # Domain 67, API 93, Pipeline 116 (276 in all)
-cd ui && npm ci && npm test && npm run build    # UI: 21 tests, run headless in jsdom
+dotnet test            # Domain 79, API 113, Pipeline 267 (459 in all)
+cd ui && npm ci && npm test && npm run build    # UI: 35 tests, run headless in jsdom
 ```
 
 ### Run the whole flow locally
@@ -129,6 +156,21 @@ cp samples/01-water-damage-clean.pdf samples/05-loss-outside-policy-period.pdf s
 curl "http://localhost:5100/claims?status=all"
 ```
 
+To see the coverage assessment, drop the clean sample and one that triggers exclusions, then read the claim and its
+audit trail (the sample dates are written around 14 November 2026, so the notification check treats later runs as
+late):
+
+```bash
+cp samples/01-water-damage-clean.pdf samples/09-flood-office-exclusion.pdf samples/10-unoccupied-late-notification.pdf local-inbox/
+cp samples/11-duplicate-water-damage-email.txt local-inbox/      # after 01 has been processed: a possible duplicate of it
+curl http://localhost:5100/claims/<id>          # "assessment": findings with cited clauses, route, notes
+curl http://localhost:5100/claims/<id>/audit    # every tool call, with redacted arguments
+```
+
+Sample 01 is covered under clause 3.2 and goes straight to a handler. Sample 09 cites the flood exclusion (4.1) of the
+Office wording. Sample 10 cites the unoccupied exclusion (4.3) and the 30-day notification condition (5.1) and is
+marked for senior review.
+
 Each file moves to `local-inbox/processed/`, or to `failed/` if it cannot be read. In the UI, a handler opens a
 claim, checks the fields against the source text, and approves or rejects it. Approving a claim with a blocking
 error is refused. Approving a clean claim writes it to the legacy system and shows the legacy reference:
@@ -143,7 +185,18 @@ again completes it under the same idempotency key. See `samples/` for what each 
 
 To use real Azure services instead, see the `Intake:*` settings in
 [ServiceCollectionExtensions](src/ClaimsIntake.Pipeline/ServiceCollectionExtensions.cs). They are untested against
-the real services.
+the real services. For Milestone 3: `Intake:PolicySearch` (`Local` or `AzureAiSearch`, with
+`Intake:AzureAiSearch:Endpoint` and `Intake:Foundry:EmbeddingDeployment`), `Intake:Assessor` (`Rules`, `Agent` or
+`None`; `Agent` needs `Intake:Foundry:Endpoint` and `Deployment`), and on the API `Audit:Table:Endpoint`. To load the
+wordings into the index (needs `az login` and the Search Service Contributor and Search Index Data Contributor
+roles on the service):
+
+```bash
+dotnet run --project src/ClaimsIntake.Ingestion -- --wordings samples/policy-wordings --dry-run   # chunk and print, offline
+dotnet run --project src/ClaimsIntake.Ingestion -- --wordings samples/policy-wordings \
+  --search-endpoint https://<service>.search.windows.net --openai-endpoint https://<resource>.openai.azure.com \
+  --embedding-deployment <name>
+```
 
 ### The pieces separately
 
@@ -190,7 +243,8 @@ In place:
 - **No keys or connection strings.** The Bicep gives one user-assigned managed identity scoped role
   assignments, turns off shared-key access on storage and local auth on Service Bus, and puts only resource
   names in application settings ([ADR 0003](docs/adr/0003-managed-identity-no-keys.md)).
-- **Human approval for writes.** The agent can only propose. The domain model refuses to approve a claim that
+- **Human approval for writes.** The agent can only propose. `propose_claim` records a proposal in memory; the
+  tools are given no writer, so they cannot write (a test checks this). The domain model refuses to approve a claim that
   has data-quality errors or has already been decided ([ADR 0002](docs/adr/0002-human-approval-for-writes.md)).
 - **UK South only.** The Bicep `location` parameter allows only `uksouth`.
 - **Safe retries.** The legacy write needs an idempotency key. Reuse with a different body is refused. The API
@@ -202,6 +256,10 @@ In place:
 - **Input handling.** Request bodies are validated and length-limited. Blob names are cleaned before logging.
 - **Defaults on the hosts.** HTTPS only, TLS 1.2 minimum, FTP off, basic publishing credentials off,
   Key Vault with RBAC, soft delete and purge protection, storage with no public blob access.
+
+- **Grounded citations.** A coverage finding can only cite a clause that the wording search returned in that run, and
+  the clause text shown is the wording's ([ADR 0006](docs/adr/0006-policy-wording-rag.md)).
+- **Audit of every tool call**, with arguments reduced to ids, dates and lengths of free text, not claim text.
 
 Not yet in place (planned, mainly Milestone 6):
 
@@ -224,6 +282,18 @@ Not yet in place (planned, mainly Milestone 6):
   settings for identity-based blob trigger, Service Bus and host storage connections, and azd deployment with
   basic publishing credentials turned off. Role definition ids were checked against Microsoft's published
   built-in roles list.
+- **Milestone 3 Azure paths, compiled and tested only against fakes, never run:** `AzureAiSearchPolicyWordingSearch`
+  (the keyword and vector query, options, filter and result mapping are tested; `SearchClientClauseQuery` and
+  `SearchIndexClauseWriter`, which call the SDK, are not), the index schema (checked as an object, never created),
+  the ingestion tool's upload path, `AgentClaimAssessor` against a real model (tested with a scripted `IChatClient`,
+  so how a real model behaves with the prompt, the tools and the JSON answer is unknown), `TableStorageAuditLog`
+  (against a fake table; `TableClientAuditTable` is not tested), and the new Bicep (an Azure AI Search resource, the
+  Search Index Data Reader role, the audit table and app settings, none of it through `az bicep build`). The Foundry
+  chat and embedding deployments are still not in the Bicep, so the Function App is configured for the local search and
+  the rule-based assessor. Whether the free Azure AI Search tier accepts Entra ID only access is assumed, not checked.
+- The rule-based assessor was tuned on the eleven samples, so its results on them flatter it. Retrieval quality on
+  real, longer wordings is unmeasured. The UI changes for the assessment were tested in jsdom and not looked at in a
+  browser.
 - The Function App has not been started, because the Functions Core Tools are not installed. The project
   builds, the function is unit-tested by calling it directly with fakes, and the Event Grid blob trigger is only
   compiled, not run. The pipeline's spans are not yet wired to Application Insights in the Function App.
@@ -245,9 +315,9 @@ Not yet in place (planned, mainly Milestone 6):
 .github/workflows/ci.yml   build, test with coverage; eval job commented out until Milestone 4
 docs/                      discovery, success metrics, architecture, ADRs
 infra/                     Bicep (main.bicep and modules), azd parameters
-src/                       Domain, Pipeline, Api, Legacy, Functions, Watcher
+src/                       Domain, Pipeline, Api, Legacy, Functions, Watcher, Ingestion
 ui/                        Angular review UI
-samples/                   synthetic claim documents and their generator
+samples/                   synthetic claim documents and their generator; policy-wordings/ holds the wordings
 scripts/                   run-local.ps1 starts everything locally
 tests/                     Domain.Tests, Pipeline.Tests, Api.Tests (API and legacy)
 azure.yaml                 azd project definition

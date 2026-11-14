@@ -18,6 +18,9 @@ param skuName string = 'Standard_LRS'
 @description('Blob containers to create.')
 param containerNames array = []
 
+@description('Tables to create. Used for the audit log of agent tool calls (Milestone 3).')
+param tableNames array = []
+
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
   location: location
@@ -64,6 +67,17 @@ resource containers 'Microsoft.Storage/storageAccounts/blobServices/containers@2
   }
 }]
 
+resource tableService 'Microsoft.Storage/storageAccounts/tableServices@2023-05-01' = {
+  parent: storage
+  name: 'default'
+}
+
+resource tables 'Microsoft.Storage/storageAccounts/tableServices/tables@2023-05-01' = [for tableName in tableNames: {
+  parent: tableService
+  name: tableName
+}]
+
 output name string = storage.name
 output id string = storage.id
 output blobEndpoint string = storage.properties.primaryEndpoints.blob
+output tableEndpoint string = storage.properties.primaryEndpoints.table
