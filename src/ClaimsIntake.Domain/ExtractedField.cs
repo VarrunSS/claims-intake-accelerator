@@ -20,3 +20,18 @@ public sealed record ExtractedField(string Name, string? Value, double Confidenc
 
     public bool HasValue => !string.IsNullOrWhiteSpace(Value);
 }
+
+public static class ClaimConfidence
+{
+    /// <summary>
+    /// The lowest confidence among the fields that have a value, or 0 when none has. A claim is only as
+    /// trustworthy as its weakest field. A field that was looked for and not found does not count here;
+    /// the validator reports required ones as issues.
+    /// </summary>
+    public static double Lowest(IEnumerable<ExtractedField> fields)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        var found = fields.Where(f => f.HasValue).Select(f => f.Confidence).ToList();
+        return found.Count == 0 ? 0.0 : found.Min();
+    }
+}

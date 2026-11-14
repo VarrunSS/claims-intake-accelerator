@@ -4,7 +4,14 @@
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "InboxStorage__serviceUri": "https://<storage-account>.blob.core.windows.net",
-    "ServiceBus__fullyQualifiedNamespace": "<namespace>.servicebus.windows.net",
-    "ClaimDocumentsQueue": "claim-documents"
+    "Intake__TextExtractor": "Local",
+    "Intake__ClaimExtractor": "Heuristic",
+    "Intake__Sink": "ServiceBus",
+    "Intake__ServiceBus__FullyQualifiedNamespace": "<namespace>.servicebus.windows.net",
+    "Intake__ServiceBus__QueueName": "claims-for-review",
+    "Intake__Legacy__BaseUrl": "https://<legacy-app>.azurewebsites.net",
+    "Intake__DocumentIntelligence__Endpoint": "(set when Intake__TextExtractor is DocumentIntelligence)",
+    "Intake__Foundry__Endpoint": "(set when Intake__ClaimExtractor is Foundry)",
+    "Intake__Foundry__Deployment": "(the model deployment name)"
   }
 }

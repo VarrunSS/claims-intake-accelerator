@@ -23,6 +23,12 @@ param inboxBlobEndpoint string
 
 param serviceBusNamespace string
 param documentsQueueName string
+
+@description('Base address of the legacy claims system, for the policy lookup.')
+param legacyBaseUrl string
+
+@description('Queue the extracted claims are handed to for review.')
+param reviewQueueName string = 'claims-for-review'
 param applicationInsightsConnectionString string
 
 @allowed([
@@ -102,6 +108,14 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'ServiceBus__credential', value: 'managedidentity' }
         { name: 'ServiceBus__clientId', value: identityClientId }
         { name: 'ClaimDocumentsQueue', value: documentsQueueName }
+        // Intake pipeline (ClaimsIntake.Pipeline). The Document Intelligence and Foundry settings are not set yet:
+        // those resources are not in this template, so the Function App uses the local text and heuristic
+        // extractors until they are added. See docs/adr/0005 and the README.
+        { name: 'Intake__Sink', value: 'ServiceBus' }
+        { name: 'Intake__ServiceBus__FullyQualifiedNamespace', value: serviceBusNamespace }
+        { name: 'Intake__ServiceBus__QueueName', value: reviewQueueName }
+        { name: 'Intake__ManagedIdentityClientId', value: identityClientId }
+        { name: 'Intake__Legacy__BaseUrl', value: legacyBaseUrl }
         { name: 'AZURE_CLIENT_ID', value: identityClientId }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
       ]

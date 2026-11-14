@@ -1,53 +1,50 @@
-using System.Text.Json;
-using System.Text.RegularExpressions;
+using ClaimsIntake.Pipeline;
+using ClaimsIntake.Pipeline.Text;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Extensions.Logging;
 
 namespace ClaimsIntake.Functions;
 
-/// <summary>Message put on the claim-documents queue for the next stage to pick up.</summary>
-public sealed record ClaimDocumentMessage(Guid MessageId, string BlobName, long SizeBytes, DateTimeOffset ReceivedAt);
-
 /// <summary>
-/// Milestone 1 stub. Fires when a document lands in the inbox container, logs it and puts a message on
-/// the queue. Document Intelligence and the extraction agent are added in Milestone 2.
+/// Fires when a document lands in the inbox container and runs it through <see cref="ClaimIntakePipeline"/>:
+/// extract text, extract fields, look up the policy, validate, then hand the proposed claim to the review
+/// queue. The Function holds no intake logic of its own, so the same code runs locally in the inbox watcher.
 /// </summary>
 /// <remarks>
-/// Connections use identity-based settings: InboxStorage__serviceUri and ServiceBus__fullyQualifiedNamespace,
-/// with AZURE_CLIENT_ID selecting the user-assigned managed identity. No keys or connection strings.
+/// Connections use identity-based settings: InboxStorage__serviceUri for the trigger, and the Intake__*
+/// settings for the pipeline, with AZURE_CLIENT_ID or Intake__ManagedIdentityClientId selecting the
+/// user-assigned managed identity. No keys or connection strings. An exception makes the blob trigger retry
+/// and finally poison the blob, which keeps a failed document visible rather than dropped (ADR 0001).
+/// Compiled and unit-tested with fakes only; the Function host has never been started.
 /// </remarks>
-public sealed partial class ClaimDocumentReceived(ILogger<ClaimDocumentReceived> logger, TimeProvider time)
+public sealed class ClaimDocumentReceived(ClaimIntakePipeline pipeline)
 {
     [Function(nameof(ClaimDocumentReceived))]
-    [ServiceBusOutput("%ClaimDocumentsQueue%", Connection = "ServiceBus")]
-    public string Run(
+    public async Task Run(
         [BlobTrigger("inbox/{name}", Source = BlobTriggerSource.EventGrid, Connection = "InboxStorage")] Stream document,
-        string name)
+        string name,
+        CancellationToken cancellationToken)
     {
-        var message = BuildMessage(name, document.CanSeek ? document.Length : -1, time.GetUtcNow());
-
-        // The blob name comes from whoever uploaded the file, so it is cleaned before it is logged.
-        LogReceived(logger, message.MessageId, Sanitise(name), message.SizeBytes);
-
-        return JsonSerializer.Serialize(message);
+        var content = await ReadLimitedAsync(document, cancellationToken);
+        await pipeline.ProcessAsync(new IntakeDocument($"inbox/{name}", name, content), cancellationToken);
     }
 
-    public static ClaimDocumentMessage BuildMessage(string blobName, long sizeBytes, DateTimeOffset receivedAt)
+    /// <summary>Reads the blob, refusing anything larger than the pipeline accepts before it is all in memory.</summary>
+    public static async Task<BinaryData> ReadLimitedAsync(Stream stream, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
-        return new ClaimDocumentMessage(Guid.NewGuid(), blobName, sizeBytes, receivedAt);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (buffer.Length + read > ClaimIntakePipeline.MaxDocumentBytes)
+            {
+                throw new UnreadableDocumentException(
+                    $"The document is larger than {ClaimIntakePipeline.MaxDocumentBytes / (1024 * 1024)} MB.");
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        return new BinaryData(buffer.ToArray());
     }
-
-    /// <summary>Removes control characters (including line breaks) and caps the length of a name for logging.</summary>
-    public static string Sanitise(string value)
-    {
-        var cleaned = ControlCharacters().Replace(value, "_");
-        return cleaned.Length <= 200 ? cleaned : cleaned[..200];
-    }
-
-    [GeneratedRegex(@"[\p{C}]")]
-    private static partial Regex ControlCharacters();
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Claim document {MessageId} received: {BlobName} ({SizeBytes} bytes). Queued for extraction.")]
-    private static partial void LogReceived(ILogger logger, Guid messageId, string blobName, long sizeBytes);
 }

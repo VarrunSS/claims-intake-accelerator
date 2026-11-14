@@ -12,12 +12,13 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestone 1 is done. The rest is planned and not started.
+Milestones 1 and 2 are done. The rest is planned and not started. Everything runs locally with only the .NET
+SDK (and Node for the UI); **the Azure path of Milestone 2 has not been run** (see below).
 
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Discovery and skeleton: docs, domain rules, review API, legacy mock, Function stub, Bicep, CI | **Done** |
-| 2 | Happy path: PDF in Blob, Document Intelligence, extraction agent, claim in the Angular review UI | Not started |
+| 2 | Happy path: document in, extracted and validated claim in the Angular review UI, approval writes to the legacy system | **Done locally. Azure path compiled and unit-tested only, never run** |
 | 3 | RAG and legacy tools: policy wording search with citations, write-back after approval, audit log | Not started |
 | 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, unreadable-scan handling | Not started |
 | 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | Not started |
@@ -25,9 +26,15 @@ Milestone 1 is done. The rest is planned and not started.
 | 7 | Packaging: demo, runbook, final README and measured results | Not started |
 
 **The infrastructure has not been deployed or validated.** `azd`, `az` and the Functions Core Tools were not
-installed when Milestone 1 was written, so the Bicep in `infra/` has never been through `az bicep build`,
+installed when Milestones 1 and 2 were written, so the Bicep in `infra/` has never been through `az bicep build`,
 `what-if` or a deployment, and the Function App has never been started. Expect fixes on the first real
 deployment. The .NET code is built and tested; see below.
+
+**Milestone 2 was built without any Azure or AI access** (no subscription, no model keys, no Docker). Every
+external dependency is behind an interface with a local implementation, which is what runs by default and in
+the tests, and an Azure implementation, chosen by configuration ([ADR 0005](docs/adr/0005-local-development-mode.md)).
+The Azure implementations (Document Intelligence, the Foundry model, Service Bus, the Function) compile and are
+unit-tested against fakes. They have never talked to the real services.
 
 ## Architecture
 
@@ -38,36 +45,110 @@ Blob inbox -> Event Grid -> Azure Functions -> Document Intelligence -> extracti
    -> Service Bus -> ASP.NET Core API -> Angular review UI -> mock legacy claims system
 ```
 
+Locally, a folder watcher stands in for the blob trigger, a PDF reader and a heuristic extractor stand in for
+Document Intelligence and the model, and the hand-off is an HTTP call instead of a queue message. The pipeline
+code between them is the same.
+
 Design decisions are in [docs/adr](docs/adr):
 
 1. [Event-driven pipeline](docs/adr/0001-event-driven-pipeline.md)
 2. [Human approval for writes](docs/adr/0002-human-approval-for-writes.md)
 3. [Managed identity, no keys](docs/adr/0003-managed-identity-no-keys.md)
 4. [Microsoft Agent Framework for the agent](docs/adr/0004-dotnet-agent-framework.md)
+5. [Local development mode](docs/adr/0005-local-development-mode.md)
 
 Customer documents: [discovery](docs/00-discovery.md) and [success metrics](docs/01-success-metrics.md).
 
-## What is built in Milestone 1
+## What is built
+
+### Milestone 1
 
 | Project | What it does |
 |---|---|
 | `src/ClaimsIntake.Domain` | `Claim`, `ExtractedField` (value, confidence, source span), `PolicyReference`, `ClaimStatus`, and `ClaimValidator`, which flags a missing policy number, an unknown policy, a missing, unreadable or future loss date, a loss date outside the policy period, an invalid amount and low-confidence fields. `Claim.Approve` refuses a claim with blocking errors. |
 | `src/ClaimsIntake.Api` | Minimal API: list claims for review, get one, approve, reject. In-memory store behind `IClaimRepository`. Liveness and readiness health checks. OpenTelemetry traces and metrics with a configurable exporter. |
 | `src/ClaimsIntake.Legacy` | Mock legacy claims system: `GET /policies/{number}` over 10 seeded policies, and `POST /claims`, which requires an `Idempotency-Key` header and makes retries safe. |
-| `src/ClaimsIntake.Functions` | .NET 10 isolated worker with a blob-trigger stub that logs the document and puts a message on a Service Bus queue. It compiles; it has not been run. |
-| `tests/` | 101 xUnit tests: validation rules and claim state changes, every API endpoint through `WebApplicationFactory`, and legacy idempotency including concurrent retries. |
+| `src/ClaimsIntake.Functions` | .NET 10 isolated worker with the blob trigger. |
 | `infra/`, `azure.yaml` | Bicep for `azd up`: managed identity with role assignments, storage, Service Bus, Key Vault, Log Analytics and Application Insights, a Function App and an App Service plan for the API and the mock. |
+
+### Milestone 2: the happy path
+
+A claim document dropped in the inbox comes out as an extracted, validated claim in the review UI, where a handler
+approves or rejects it. Approval writes to the legacy system exactly once.
+
+| Project | What it adds |
+|---|---|
+| `src/ClaimsIntake.Pipeline` | `ClaimIntakePipeline`: extract text, extract fields, look up the policy (`lookup_policy`, over a typed `HttpClient`), validate with `ClaimValidator`, hand off. One OpenTelemetry span per stage with `stage`, `duration_ms`, `documentId` and `confidence`; no document text in spans or logs. Two implementations of each seam, chosen by `Intake:*` settings: `IDocumentTextExtractor` (`LocalPdfTextExtractor` on PdfPig, or `AzureDocumentIntelligenceExtractor`), `IClaimExtractor` (`HeuristicClaimExtractor`, deterministic and offline, or `FoundryLlmClaimExtractor` on `IChatClient` with a JSON schema) and `IClaimSink` (`HttpClaimSink` or `ServiceBusClaimSink`). Also `LocalInboxWatcher`. |
+| `src/ClaimsIntake.Watcher` | A small host that runs the folder watcher. |
+| `src/ClaimsIntake.Functions` | The blob trigger now calls the pipeline, and the hand-off goes to the `claims-for-review` Service Bus queue. |
+| `src/ClaimsIntake.Api` | `POST /intake/claims` (local mode only, off by default) and a Service Bus consumer, both ending in `ClaimIntakeService`. Approval now writes to the legacy system with the claim id as the idempotency key and records the legacy reference. CORS for the Angular dev server in Development only. |
+| `src/ClaimsIntake.Domain` | `ProposedClaim` (the hand-off message), source text and legacy reference on `Claim`. |
+| `ui/` | Angular review UI: claim list with status, confidence and issue counts; claim detail with the source text beside the extracted fields, confidence badges, validation issues, and approve or reject with a reason. |
+| `samples/` | Eight synthetic claim documents, including a missing policy number, a future loss date, a loss outside the policy period, an informal email, a broker `.eml` and a garbled layout, and the script that generates them. |
+| `tests/` | Domain, API and Pipeline tests; see the Quickstart for counts. |
+
+**How the heuristic extractor decides its confidence.** A value next to its label (`Policy number: TM-CP-100001`)
+scores 0.90 to 0.97. A value found by pattern or keyword alone scores 0.40 to 0.88, and a guess (the email sender
+as the insured, the first pound amount in a message) scores 0.45 to 0.55. Several different policy numbers, or a
+date that could be read day-first or month-first, lower it further. Anything below 0.80 is flagged to the handler.
+The extractor says "not found" rather than invent a value. It does not read scans.
+
+**Why `IChatClient` and not the agent yet.** [ADR 0004](docs/adr/0004-dotnet-agent-framework.md) chose Microsoft
+Agent Framework. The single extraction call in this milestone needs no tools or threads, so
+`FoundryLlmClaimExtractor` uses `Microsoft.Extensions.AI` `IChatClient`, the layer Agent Framework sits on, behind
+`IClaimExtractor`. The agent and its tools arrive in Milestone 3. The model's answer is checked: a value that is
+not in the document has its confidence capped at 0.5, and a malformed reply fails the document instead of
+producing an empty claim.
 
 ## Quickstart
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download). Nothing else, and no Azure account.
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), and [Node.js](https://nodejs.org) 22 or later
+for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test
+dotnet test            # Domain 67, API 93, Pipeline 116 (276 in all)
+cd ui && npm ci && npm test && npm run build    # UI: 21 tests, run headless in jsdom
 ```
 
-Run the review API (http://localhost:5100). In the Development environment it loads four made-up claims.
+### Run the whole flow locally
+
+Four processes, in four terminals (or run `./scripts/run-local.ps1` on Windows to start them all):
+
+```bash
+dotnet run --project src/ClaimsIntake.Legacy      # http://localhost:5200  mock claims system
+dotnet run --project src/ClaimsIntake.Api         # http://localhost:5100  review API (Development: intake route on)
+dotnet run --project src/ClaimsIntake.Watcher     # watches ./local-inbox
+cd ui && npm start                                 # http://localhost:4200  review UI, proxies /api to the API
+```
+
+Then drop documents into the inbox and open http://localhost:4200:
+
+```bash
+cp samples/01-water-damage-clean.pdf samples/05-loss-outside-policy-period.pdf samples/06-email-fire.txt local-inbox/
+curl "http://localhost:5100/claims?status=all"
+```
+
+Each file moves to `local-inbox/processed/`, or to `failed/` if it cannot be read. In the UI, a handler opens a
+claim, checks the fields against the source text, and approves or rejects it. Approving a claim with a blocking
+error is refused. Approving a clean claim writes it to the legacy system and shows the legacy reference:
+
+```bash
+curl -X POST http://localhost:5100/claims/<id>/approve -H "Content-Type: application/json" -d '{"reviewer":"a.patel"}'
+```
+
+Approve it again and you get the same reference back with an `Idempotent-Replay: true` header, and the legacy system
+still holds one claim. If the legacy system is down, the claim stays approved, the API answers 502, and approving
+again completes it under the same idempotency key. See `samples/` for what each document is meant to show.
+
+To use real Azure services instead, see the `Intake:*` settings in
+[ServiceCollectionExtensions](src/ClaimsIntake.Pipeline/ServiceCollectionExtensions.cs). They are untested against
+the real services.
+
+### The pieces separately
+
+Run the review API (http://localhost:5100). To load four made-up claims for a demo without the watcher, set
+`Seed__DemoData=true`.
 
 ```bash
 dotnet run --project src/ClaimsIntake.Api
@@ -112,13 +193,20 @@ In place:
 - **Human approval for writes.** The agent can only propose. The domain model refuses to approve a claim that
   has data-quality errors or has already been decided ([ADR 0002](docs/adr/0002-human-approval-for-writes.md)).
 - **UK South only.** The Bicep `location` parameter allows only `uksouth`.
-- **Safe retries.** The legacy write needs an idempotency key. Reuse with a different body is refused.
+- **Safe retries.** The legacy write needs an idempotency key. Reuse with a different body is refused. The API
+  uses the claim id as the key, serialises approvals per claim, and a repeated approval returns the first result.
+- **No document text in telemetry.** Spans and logs carry document and claim ids, stage names, durations,
+  counts and confidence, and exception types, never text or field values. Tests check this.
+- **Untrusted documents.** Document text goes to the model as data between delimiters with no tools, the reply is
+  validated against the document, and size limits apply at intake (10 MB per document) and on the hand-off.
 - **Input handling.** Request bodies are validated and length-limited. Blob names are cleaned before logging.
 - **Defaults on the hosts.** HTTPS only, TLS 1.2 minimum, FTP off, basic publishing credentials off,
   Key Vault with RBAC, soft delete and purge protection, storage with no public blob access.
 
 Not yet in place (planned, mainly Milestone 6):
 
+- `POST /intake/claims` is off unless `Intake:HttpEndpoint:Enabled` is set, and has **no authentication**; it is for
+  local mode only ([ADR 0005](docs/adr/0005-local-development-mode.md)).
 - The review API has **no authentication**. The reviewer name comes from the request body. Entra ID sign-in and
   roles come next. Do not expose the API as it stands.
 - The mock legacy system has no authentication either. It stands in for a system that would have its own.
@@ -137,7 +225,18 @@ Not yet in place (planned, mainly Milestone 6):
   basic publishing credentials turned off. Role definition ids were checked against Microsoft's published
   built-in roles list.
 - The Function App has not been started, because the Functions Core Tools are not installed. The project
-  builds, and the Event Grid blob trigger is only compiled, not run.
+  builds, the function is unit-tested by calling it directly with fakes, and the Event Grid blob trigger is only
+  compiled, not run. The pipeline's spans are not yet wired to Application Insights in the Function App.
+- **Milestone 2 Azure paths, compiled and tested only against fakes, never run:**
+  `AzureDocumentIntelligenceExtractor` (its `DocumentIntelligenceClient` adapter is not even unit-tested),
+  `FoundryLlmClaimExtractor` against a real model (the JSON schema is hand-written and not checked against a live
+  service's strict-mode rules), `ServiceBusClaimSink`, the API's `ServiceBusClaimConsumer`, and the new Bicep app
+  settings. The Document Intelligence and Foundry resources are not in the Bicep yet. Extraction quality on real
+  documents or with a real model is unmeasured; the 50-claim evaluation set is Milestone 4.
+- The heuristic extractor was tuned on the eight synthetic samples in this repository, so its results on them
+  flatter it.
+- The UI is tested in jsdom, and was looked at once in a real browser against the running API. It has no
+  automated browser or accessibility test.
 - The Mermaid diagram was parsed by the Mermaid library but not viewed in a renderer.
 
 ## Repository layout
@@ -146,8 +245,11 @@ Not yet in place (planned, mainly Milestone 6):
 .github/workflows/ci.yml   build, test with coverage; eval job commented out until Milestone 4
 docs/                      discovery, success metrics, architecture, ADRs
 infra/                     Bicep (main.bicep and modules), azd parameters
-src/                       Domain, Api, Legacy, Functions
-tests/                     Domain.Tests, Api.Tests (API and legacy)
+src/                       Domain, Pipeline, Api, Legacy, Functions, Watcher
+ui/                        Angular review UI
+samples/                   synthetic claim documents and their generator
+scripts/                   run-local.ps1 starts everything locally
+tests/                     Domain.Tests, Pipeline.Tests, Api.Tests (API and legacy)
 azure.yaml                 azd project definition
 ```
 

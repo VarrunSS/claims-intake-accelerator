@@ -116,7 +116,8 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var claim = await response.Content.ReadFromJsonAsync<ClaimDetail>(Json);
-        Assert.Equal(ClaimStatus.Approved, claim!.Status);
+        Assert.Equal(ClaimStatus.Submitted, claim!.Status); // Approval also writes to the legacy system.
+        Assert.Equal("LC-000001", claim.LegacyReference);
         Assert.Equal("a.patel", claim.DecidedBy);
         Assert.Equal(ApiFactory.Now, claim.DecidedAt);
 
@@ -203,7 +204,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
             $"/claims/{factory.Clean.Id}/reject", new RejectRequest("b.jones", "Changed my mind."));
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-        Assert.Equal(ClaimStatus.Approved, factory.Clean.Status);
+        Assert.Equal(ClaimStatus.Submitted, factory.Clean.Status);
         Assert.Equal("a.patel", factory.Clean.DecidedBy);
     }
 
@@ -230,7 +231,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Two_handlers_approving_at_once_produce_exactly_one_success()
+    public async Task Several_handlers_approving_at_once_write_to_the_legacy_system_once()
     {
         using var factory = Fresh();
         var client = factory.CreateClient();
@@ -238,7 +239,10 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(i =>
             client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest($"handler{i}"))));
 
-        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.OK));
-        Assert.Equal(7, results.Count(r => r.StatusCode == HttpStatusCode.Conflict));
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+        Assert.Equal(1, factory.Legacy.Calls); // Calls for one claim are serialised, and later ones see it is done.
+        Assert.Equal(1, results.Count(r => !r.Headers.Contains("Idempotent-Replay")));
+        Assert.Equal(7, results.Count(r => r.Headers.Contains("Idempotent-Replay")));
+        Assert.StartsWith("handler", factory.Clean.DecidedBy); // Whoever got in first is recorded; the others change nothing.
     }
 }

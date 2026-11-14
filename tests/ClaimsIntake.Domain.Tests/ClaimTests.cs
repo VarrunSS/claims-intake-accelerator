@@ -112,12 +112,14 @@ public class ClaimTests
     public void Only_an_approved_claim_can_be_marked_as_submitted()
     {
         var claim = NewClaim();
-        Assert.Throws<InvalidClaimTransitionException>(claim.MarkSubmitted);
+        Assert.Throws<InvalidClaimTransitionException>(() => claim.MarkSubmitted("LC-000001"));
 
         claim.Approve("a.patel", Now);
-        claim.MarkSubmitted();
+        Assert.Throws<ArgumentException>(() => claim.MarkSubmitted(" "));
+        claim.MarkSubmitted("LC-000001");
 
         Assert.Equal(ClaimStatus.Submitted, claim.Status);
+        Assert.Equal("LC-000001", claim.LegacyReference);
     }
 
     [Fact]

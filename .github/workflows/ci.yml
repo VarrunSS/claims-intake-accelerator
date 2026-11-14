@@ -57,6 +57,26 @@ jobs:
           path: TestResults
           if-no-files-found: warn
 
+  # The Angular review UI. Its tests run in jsdom, so no browser is needed.
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
   # Milestone 4 adds the evaluation job. It scores the extraction agent against the synthetic claims in
   # evals/ and fails the build below the thresholds in docs/01-success-metrics.md. It is commented out
   # because there is no agent to evaluate yet. Like the FHIR MCP evals, it will skip itself on pull

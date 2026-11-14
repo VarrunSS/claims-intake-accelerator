@@ -2,7 +2,7 @@
 
 > Thames Mutual Insurance is a fictional customer. See [00-discovery.md](../00-discovery.md).
 
-- Status: accepted (no agent code exists yet; first used in Milestone 2)
+- Status: accepted (the agent itself is built in Milestone 3; see the Milestone 2 note below)
 - Date: 2026-11-13
 
 ## Context
@@ -78,6 +78,18 @@ Costs:
   none (discovery, week 1).
 - The agent will not be built in Milestone 1. This ADR records the choice so Milestone 2 can start straight
   away, and it should be revisited if the package's cadence or stability worsens.
+
+## Milestone 2 note: `IChatClient` first, the agent in Milestone 3
+
+Milestone 2 reads fields from a document in one model call: text in, structured fields out, no tools and no
+thread. For that, `Microsoft.Extensions.AI` `IChatClient` with a JSON schema is enough, and it is the layer
+Agent Framework itself sits on. So `FoundryLlmClaimExtractor` uses `IChatClient` directly, behind the
+`IClaimExtractor` interface this ADR asks for, and `Microsoft.Agents.AI` is **not referenced yet**. Adding the
+agent in Milestone 3 (policy lookup, wording search, duplicate check, `create_claim`) means a second
+implementation behind the same interface, or this one wrapped by an agent; nothing outside the interface changes.
+The decision above stands. The only deviation is timing: the framework arrives when there is a tool loop to
+justify it, rather than for a single call. Package versions are pinned inline in each project file; the
+`Directory.Packages.props` option mentioned above was not adopted.
 
 ## Alternatives considered
 

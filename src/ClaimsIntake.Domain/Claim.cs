@@ -8,13 +8,15 @@ public sealed class Claim
 {
     private readonly Dictionary<string, ExtractedField> _fields;
     private readonly List<ValidationIssue> _issues;
+    private readonly List<string> _sourcePages;
 
     public Claim(
         Guid id,
         string sourceDocumentId,
         DateTimeOffset receivedAt,
         IEnumerable<ExtractedField> fields,
-        IEnumerable<ValidationIssue> issues)
+        IEnumerable<ValidationIssue> issues,
+        IEnumerable<string>? sourcePages = null)
     {
         if (id == Guid.Empty)
         {
@@ -29,6 +31,7 @@ public sealed class Claim
         _fields = (fields ?? throw new ArgumentNullException(nameof(fields)))
             .ToDictionary(f => f.Name, StringComparer.Ordinal);
         _issues = [.. issues ?? throw new ArgumentNullException(nameof(issues))];
+        _sourcePages = [.. sourcePages ?? []];
         Status = ClaimStatus.NeedsReview;
     }
 
@@ -46,6 +49,18 @@ public sealed class Claim
 
     public IReadOnlyDictionary<string, ExtractedField> Fields => _fields;
     public IReadOnlyList<ValidationIssue> Issues => _issues;
+
+    /// <summary>
+    /// The text read from the document, one entry per page, so a handler can check fields against it.
+    /// Source spans index into these pages. This is personal data: show it to handlers, never log it.
+    /// </summary>
+    public IReadOnlyList<string> SourcePages => _sourcePages;
+
+    /// <summary>The reference the legacy claims system gave the claim. Null until the claim is submitted.</summary>
+    public string? LegacyReference { get; private set; }
+
+    /// <summary>The lowest confidence among the fields that were found. See <see cref="ClaimConfidence.Lowest"/>.</summary>
+    public double MinConfidence => ClaimConfidence.Lowest(_fields.Values);
 
     public string? PolicyNumber => FieldValue(ClaimFields.PolicyNumber);
     public string? ClaimantName => FieldValue(ClaimFields.ClaimantName);
@@ -86,15 +101,21 @@ public sealed class Claim
         RejectionReason = reason.Trim();
     }
 
-    /// <summary>Records that the approved claim was written to the legacy system.</summary>
-    public void MarkSubmitted()
+    /// <summary>Records that the approved claim was written to the legacy system, and under which reference.</summary>
+    public void MarkSubmitted(string legacyReference)
     {
+        if (string.IsNullOrWhiteSpace(legacyReference))
+        {
+            throw new ArgumentException("The legacy reference is required.", nameof(legacyReference));
+        }
+
         if (Status != ClaimStatus.Approved)
         {
             throw new InvalidClaimTransitionException($"Only an approved claim can be submitted; this one is {Status}.");
         }
 
         Status = ClaimStatus.Submitted;
+        LegacyReference = legacyReference.Trim();
     }
 
     private string? FieldValue(string name) =>

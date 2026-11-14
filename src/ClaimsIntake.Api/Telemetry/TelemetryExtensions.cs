@@ -5,6 +5,14 @@ using OpenTelemetry.Trace;
 
 namespace ClaimsIntake.Api.Telemetry;
 
+/// <summary>The API's own trace source.</summary>
+public static class ApiTelemetry
+{
+    public const string SourceName = "ClaimsIntake.Api";
+
+    public static readonly System.Diagnostics.ActivitySource Source = new(SourceName);
+}
+
 /// <summary>Custom metrics emitted by the API.</summary>
 public static class ApiMetrics
 {
@@ -15,6 +23,14 @@ public static class ApiMetrics
     /// <summary>Handler decisions, tagged decision=approved or decision=rejected.</summary>
     public static readonly Counter<long> Decisions =
         Meter.CreateCounter<long>("claims.decisions", unit: "{decision}", description: "Claims approved or rejected by a handler.");
+
+    /// <summary>Writes to the legacy system, tagged outcome=created, replayed, refused or unavailable.</summary>
+    public static readonly Counter<long> LegacySubmissions =
+        Meter.CreateCounter<long>("claims.legacy_submissions", unit: "{submission}", description: "Attempts to write an approved claim to the legacy system.");
+
+    /// <summary>Proposed claims received from intake, tagged outcome=accepted or duplicate.</summary>
+    public static readonly Counter<long> IntakeClaims =
+        Meter.CreateCounter<long>("claims.intake", unit: "{claim}", description: "Proposed claims received from the intake pipeline.");
 }
 
 public static class TelemetryExtensions
@@ -37,7 +53,7 @@ public static class TelemetryExtensions
             .ConfigureResource(resource => resource.AddService("claims-intake-api"))
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation();
+                tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddSource(ApiTelemetry.SourceName);
                 switch (exporter)
                 {
                     case "console":

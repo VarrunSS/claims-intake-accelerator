@@ -1,0 +1,267 @@
+import { DatePipe } from '@angular/common';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
+import { ClaimsService } from './claims.service';
+import { confidenceBand, confidenceLabel, fieldLabel, segmentPage } from './helpers';
+import { ApiError, ClaimDetail, ClaimField } from './models';
+
+const REVIEWER_KEY = 'claims-review.reviewer';
+
+function readReviewer(): string {
+  try {
+    return localStorage.getItem(REVIEWER_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveReviewer(name: string): void {
+  try {
+    localStorage.setItem(REVIEWER_KEY, name);
+  } catch {
+    // Storage can be blocked. The name is then simply not remembered.
+  }
+}
+
+@Component({
+  selector: 'app-claim-detail',
+  imports: [FormsModule, RouterLink, DatePipe],
+  template: `
+    <p><a routerLink="/claims">&larr; Back to claims</a></p>
+
+    @if (loadError(); as e) {
+      <div class="alert" role="alert"><strong>{{ e.title }}.</strong> {{ e.detail }}</div>
+    }
+
+    @if (claim(); as c) {
+      <h1>{{ c.sourceDocumentId }}</h1>
+      <p class="muted">
+        Received {{ c.receivedAt | date: 'd MMM y, HH:mm' }} &middot;
+        <span class="chip status-{{ c.status }}">{{ c.status === 'NeedsReview' ? 'Needs review' : c.status }}</span>
+        @if (c.legacyReference) {
+          &middot; Legacy reference <strong>{{ c.legacyReference }}</strong>
+        }
+      </p>
+
+      <div class="columns">
+        <section aria-labelledby="source-heading" class="panel">
+          <h2 id="source-heading">Source text</h2>
+          @for (page of c.sourcePages; track $index) {
+            <h3>Page {{ $index + 1 }}</h3>
+            <pre class="source" tabindex="0" [attr.aria-label]="'Source text, page ' + ($index + 1)">@for (s of segments($index); track $index) {@if (s.marked) {<mark>{{ s.text }}</mark>} @else {<span>{{ s.text }}</span>}}</pre>
+          } @empty {
+            <p class="muted">No source text is available for this claim.</p>
+          }
+        </section>
+
+        <section aria-labelledby="fields-heading" class="panel">
+          <h2 id="fields-heading">Extracted fields</h2>
+          <p class="muted">Select a field to highlight where it was found.</p>
+          <ul class="fields">
+            @for (f of c.fields; track f.name) {
+              <li>
+                <button
+                  type="button"
+                  class="field"
+                  [class.active]="selected()?.name === f.name"
+                  [attr.aria-pressed]="selected()?.name === f.name"
+                  (click)="select(f)"
+                  (focus)="select(f)"
+                >
+                  <span class="field-name">{{ label(f.name) }}</span>
+                  <span class="field-value">{{ f.value ?? 'Not found' }}</span>
+                  <span class="badge band-{{ band(f) }}">{{ conf(f) }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+
+          <h2>Validation issues</h2>
+          @if (c.issues.length === 0) {
+            <p>No issues found.</p>
+          } @else {
+            <ul class="issues">
+              @for (i of c.issues; track $index) {
+                <li class="issue-{{ i.severity }}">
+                  <strong>{{ i.severity }}</strong>
+                  @if (i.field) {
+                    ({{ label(i.field) }})
+                  }
+                  {{ i.message }}
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      </div>
+
+      <section aria-labelledby="decision-heading" class="panel decision">
+        <h2 id="decision-heading">Decision</h2>
+
+        @if (c.status === 'Rejected') {
+          <p>Rejected by {{ c.decidedBy }}. Reason: {{ c.rejectionReason }}</p>
+        } @else if (c.status === 'Submitted') {
+          <p>Approved by {{ c.decidedBy }} and written to the claims system as <strong>{{ c.legacyReference }}</strong>.</p>
+        } @else {
+          <label for="reviewer">Your name</label>
+          <input
+            id="reviewer"
+            type="text"
+            autocomplete="name"
+            maxlength="200"
+            [ngModel]="reviewer()"
+            (ngModelChange)="setReviewer($event)"
+          />
+
+          @if (c.status === 'NeedsReview') {
+            <label for="reason">Reason for rejecting (required to reject)</label>
+            <textarea id="reason" rows="3" maxlength="500" [(ngModel)]="reason"></textarea>
+          } @else {
+            <p>
+              Approved by {{ c.decidedBy }}, but the write to the claims system did not complete. Retrying is safe: it
+              cannot create a duplicate claim.
+            </p>
+          }
+
+          <div class="actions">
+            <button
+              type="button"
+              class="primary"
+              [disabled]="!!approveBlocker(c) || busy()"
+              aria-describedby="approve-hint"
+              (click)="approve()"
+            >
+              {{ c.status === 'Approved' ? 'Retry write to claims system' : 'Approve' }}
+            </button>
+            @if (c.status === 'NeedsReview') {
+              <button type="button" class="danger" [disabled]="busy()" (click)="reject()">Reject</button>
+            }
+          </div>
+          <p id="approve-hint" class="muted">{{ approveBlocker(c) }}</p>
+        }
+
+        <p class="status" role="status" aria-live="polite">{{ message() }}</p>
+        @if (actionError(); as e) {
+          <div class="alert" role="alert">
+            <strong>{{ e.title }}.</strong> {{ e.detail }}
+            @for (m of e.errors; track $index) {
+              <div>{{ m }}</div>
+            }
+          </div>
+        }
+      </section>
+    }
+  `,
+})
+export class ClaimDetailPage {
+  private readonly service = inject(ClaimsService);
+
+  /** Bound from the route parameter. */
+  readonly id = input.required<string>();
+
+  protected readonly claim = signal<ClaimDetail | null>(null);
+  protected readonly loadError = signal<ApiError | null>(null);
+  protected readonly actionError = signal<ApiError | null>(null);
+  protected readonly message = signal('');
+  protected readonly busy = signal(false);
+  protected readonly selected = signal<ClaimField | null>(null);
+  protected readonly reviewer = signal(readReviewer());
+  protected reason = '';
+
+  private readonly activeSpans = computed(() => {
+    const source = this.selected()?.source;
+    return source ? [source] : [];
+  });
+
+  constructor() {
+    effect(() => {
+      this.service.get(this.id()).subscribe({
+        next: (c) => {
+          this.claim.set(c);
+          this.loadError.set(null);
+        },
+        error: (e: ApiError) => this.loadError.set(e),
+      });
+    });
+  }
+
+  protected segments(pageIndex: number) {
+    const text = this.claim()?.sourcePages[pageIndex] ?? '';
+    const spans = this.activeSpans().filter((s) => s.page === pageIndex + 1);
+    return segmentPage(text, spans);
+  }
+
+  protected label(name: string) {
+    return fieldLabel(name);
+  }
+
+  protected band(f: ClaimField) {
+    return confidenceBand(f.confidence);
+  }
+
+  protected conf(f: ClaimField) {
+    return confidenceLabel(f.confidence);
+  }
+
+  protected select(f: ClaimField) {
+    this.selected.set(f);
+  }
+
+  protected setReviewer(name: string): void {
+    this.reviewer.set(name);
+    saveReviewer(name);
+  }
+
+  /** Why Approve is unavailable, or an empty string when it is available. */
+  protected approveBlocker(c: ClaimDetail): string {
+    if (c.status !== 'NeedsReview' && c.status !== 'Approved') return 'This claim has already been decided.';
+    if (c.issues.some((i) => i.severity === 'Error')) {
+      return 'Approval is blocked because the claim has validation errors. Reject it instead.';
+    }
+    if (!this.reviewer().trim()) return 'Enter your name to approve or reject.';
+    return '';
+  }
+
+  protected approve(): void {
+    const c = this.claim();
+    if (!c || this.approveBlocker(c)) return;
+    this.run(this.service.approve(c.id, this.reviewer().trim()), 'Claim approved and written to the claims system.');
+  }
+
+  protected reject(): void {
+    const c = this.claim();
+    if (!c) return;
+    if (!this.reviewer().trim()) {
+      this.actionError.set({ status: 0, title: 'Name needed', detail: 'Enter your name before rejecting.', errors: [] });
+      return;
+    }
+    if (!this.reason.trim()) {
+      this.actionError.set({ status: 0, title: 'Reason needed', detail: 'Give a reason for rejecting this claim.', errors: [] });
+      return;
+    }
+    this.run(this.service.reject(c.id, this.reviewer().trim(), this.reason.trim()), 'Claim rejected.');
+  }
+
+  private run(call: Observable<ClaimDetail>, success: string): void {
+    this.busy.set(true);
+    this.actionError.set(null);
+    this.message.set('');
+    call.subscribe({
+      next: (c) => {
+        this.claim.set(c);
+        this.busy.set(false);
+        this.message.set(success);
+      },
+      error: (e: ApiError) => {
+        this.busy.set(false);
+        this.actionError.set(e);
+        // A 502 leaves the claim Approved, so reload to show the Retry button.
+        if (e.status === 502 || e.status === 409) {
+          this.service.get(this.id()).subscribe({ next: (c) => this.claim.set(c), error: () => undefined });
+        }
+      },
+    });
+  }
+}

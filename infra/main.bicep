@@ -47,6 +47,8 @@ var names = {
 }
 
 var documentsQueueName = 'claim-documents'
+// The legacy mock's address is known from its name, so the Function App and the API can be told it up front.
+var legacyBaseUrl = 'https://${names.legacy}.azurewebsites.net'
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   name: names.resourceGroup
@@ -137,6 +139,7 @@ module functionApp 'modules/functionapp.bicep' = {
     inboxBlobEndpoint: inboxStorage.outputs.blobEndpoint
     serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     documentsQueueName: documentsQueueName
+    legacyBaseUrl: legacyBaseUrl
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
   }
 }
@@ -154,6 +157,7 @@ module appService 'modules/appservice.bicep' = {
     identityClientId: identity.outputs.clientId
     serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     keyVaultUri: keyVault.outputs.uri
+    legacyBaseUrl: legacyBaseUrl
     applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
   }
 }

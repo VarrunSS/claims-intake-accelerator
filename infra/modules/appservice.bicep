@@ -15,6 +15,12 @@ param identityClientId string
 
 param serviceBusNamespace string
 param keyVaultUri string
+
+@description('Base address of the legacy claims system, where approved claims are written.')
+param legacyBaseUrl string
+
+@description('Queue the API reads proposed claims from.')
+param reviewQueueName string = 'claims-for-review'
 param applicationInsightsConnectionString string
 
 @description('Linux plan size. B1 is enough for the skeleton; use a Premium v3 size for production.')
@@ -63,6 +69,10 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'AZURE_CLIENT_ID', value: identityClientId }
         { name: 'ServiceBus__fullyQualifiedNamespace', value: serviceBusNamespace }
         { name: 'KeyVault__Uri', value: keyVaultUri }
+        { name: 'Legacy__BaseUrl', value: legacyBaseUrl }
+        { name: 'Intake__ServiceBus__FullyQualifiedNamespace', value: serviceBusNamespace }
+        { name: 'Intake__ServiceBus__QueueName', value: reviewQueueName }
+        { name: 'Intake__ManagedIdentityClientId', value: identityClientId }
         { name: 'Telemetry__Exporter', value: 'console' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsightsConnectionString }
       ]

@@ -493,3 +493,7 @@ TestResults/
 coverage/
 *.coverage
 *.cobertura.xml
+
+# Local mode inbox (ADR 0005) and UI build output
+local-inbox/
+.local-run/

@@ -53,12 +53,13 @@ public static class ClaimEndpoints
         return claim is null ? NotFound(id) : Results.Ok(ClaimDetail.From(claim));
     }
 
+    // Approving also writes to the legacy system, so it can be repeated: an approved claim whose write failed is
+    // sent again, and one that was already written is returned as it is, with no second legacy claim.
     private static async Task<IResult> ApproveClaim(
         Guid id,
         ApproveRequest? request,
-        IClaimRepository repository,
-        TimeProvider time,
-        ILogger<ClaimsLog> logger,
+        ClaimApprovalService approvals,
+        HttpResponse response,
         CancellationToken ct)
     {
         var errors = ValidateDecision(request?.Reviewer, reason: null, reasonRequired: false);
@@ -67,28 +68,28 @@ public static class ClaimEndpoints
             return Results.ValidationProblem(errors);
         }
 
-        var claim = await repository.GetAsync(id, ct);
-        if (claim is null)
+        var result = await approvals.ApproveAsync(id, request!.Reviewer!, ct);
+        switch (result.Outcome)
         {
-            return NotFound(id);
+            case ApprovalOutcome.Submitted:
+                return Results.Ok(ClaimDetail.From(result.Claim!));
+            case ApprovalOutcome.AlreadySubmitted:
+                response.Headers["Idempotent-Replay"] = "true";
+                return Results.Ok(ClaimDetail.From(result.Claim!));
+            case ApprovalOutcome.NotFound:
+                return NotFound(id);
+            case ApprovalOutcome.NotAllowed:
+                return Conflict(result.Detail!);
+            case ApprovalOutcome.MissingLegacyData:
+                return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity,
+                    title: "Claim incomplete for the claims system", detail: result.Detail);
+            case ApprovalOutcome.LegacyRefused:
+                return Results.Problem(statusCode: StatusCodes.Status422UnprocessableEntity,
+                    title: "The claims system refused the claim", detail: result.Detail);
+            default:
+                return Results.Problem(statusCode: StatusCodes.Status502BadGateway,
+                    title: "The claims system is unavailable", detail: result.Detail);
         }
-
-        try
-        {
-            lock (claim)
-            {
-                claim.Approve(request!.Reviewer!, time.GetUtcNow());
-            }
-        }
-        catch (InvalidClaimTransitionException ex)
-        {
-            return Conflict(ex.Message);
-        }
-
-        await repository.SaveAsync(claim, ct);
-        ApiMetrics.Decisions.Add(1, new KeyValuePair<string, object?>("decision", "approved"));
-        logger.LogInformation("Claim {ClaimId} approved", claim.Id);
-        return Results.Ok(ClaimDetail.From(claim));
     }
 
     private static async Task<IResult> RejectClaim(
