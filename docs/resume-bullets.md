@@ -7,7 +7,7 @@ what makes the numbers believable. Every number below was measured in this repos
 
 **A. Engagement and security (default for forward deployed or customer-facing roles)**
 
-> Built an end-to-end claims-intake reference implementation (C#/.NET 10, Angular, Azure, Bicep) that turns messy documents into pre-filled claims with cited policy clauses, behind human approval. Independent review raised 42 findings; 35 fixed with tests. Offline eval on 40 held-out synthetic claims: field F1 0.969, route accuracy 87.5%. 845 .NET tests. IaC compiled, not deployed.
+> Built an end-to-end claims-intake reference implementation (C#/.NET 10, Angular, Azure, Bicep) that turns messy documents into pre-filled claims with cited policy clauses, behind human approval. Independent review raised 42 findings; 35 fixed with tests. Offline eval on 40 held-out synthetic claims: field F1 0.969, route accuracy 87.5%. 846 .NET tests. IaC compiled, not deployed.
 
 **B. Evaluation and model selection (for AI, RAG or evaluation roles)**
 
@@ -15,13 +15,13 @@ what makes the numbers believable. Every number below was measured in this repos
 
 **C. Platform and security (for cloud, platform or security-minded roles)**
 
-> Delivered an Azure reference implementation of a document-to-claim workflow (.NET 10, Agent Framework, AI Search, Bicep, GitHub Actions) with Entra ID roles, segregation of duties, per-component identities checked by a CI role matrix, and OpenTelemetry. 845 .NET and 60 UI tests pass. Bicep compiles and lints; not yet deployed.
+> Delivered an Azure reference implementation of a document-to-claim workflow (.NET 10, Agent Framework, AI Search, Bicep, GitHub Actions) with Entra ID roles, segregation of duties, per-component identities checked by a CI role matrix, and OpenTelemetry. 846 .NET and 60 UI tests pass. Bicep compiles and lints; not yet deployed.
 
 ## What each number refers to
 
 | Number | What it is | Source |
 |---|---|---|
-| 845 .NET tests | Domain 116, API 208, Pipeline 377, Evals 144, all passing with 0 build warnings. 60 more UI tests (Vitest) and 14 Python tests | `dotnet test`, `npm test` |
+| 846 .NET tests | Domain 116, API 208, Pipeline 378, Evals 144, all passing with 0 build warnings. 60 more UI tests (Vitest) and 14 Python tests | `dotnet test`, `npm test` |
 | Field F1 0.969 | Micro-averaged over six fields (policy number, claimant, loss date, cause, amount, notification date), strict scoring, 40-case held-out test split, offline heuristic extractor and rules assessor, **no model** | [baseline report](../evals/results/baseline/report.md) |
 | Route accuracy 87.5% | 35 of 40 claims sent to the right route (straight to a handler or senior review), same run | same |
 | 32 of 32 citations grounded | Every cited clause exists in the wording and the quoted text matches. True **by construction** for the rules assessor; it says nothing about a model | same |

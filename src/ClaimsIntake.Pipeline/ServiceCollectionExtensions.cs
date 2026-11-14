@@ -144,7 +144,12 @@ public static class ServiceCollectionExtensions
         {
             case "Rules":
                 services.AddSingleton<IClaimAssessor, RuleBasedClaimAssessor>();
-                services.AddSingleton<AssessmentRunner>();
+                // Built explicitly with no route floor: the rules assessor is already the assessor, and letting the
+                // container fill the optional routeFloor parameter would run it a second time.
+                services.AddSingleton(sp => new AssessmentRunner(
+                    sp.GetRequiredService<IClaimAssessor>(), sp.GetRequiredService<IPolicyLookup>(), sp.GetRequiredService<IPolicyWordingSearch>(),
+                    sp.GetRequiredService<IExistingClaims>(), sp.GetRequiredService<TimeProvider>(),
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AssessmentRunner>>(), routeFloor: null));
                 break;
             case "Agent":
                 services.AddSingleton<IClaimAssessor>(sp => new AgentClaimAssessor(

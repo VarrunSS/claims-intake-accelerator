@@ -36,6 +36,19 @@ public class CompositionTests
     }
 
     [Fact]
+    public void The_rules_assessor_runs_once_with_no_route_floor_beside_it()
+    {
+        // Regression: the container used to fill AssessmentRunner's optional routeFloor with the rules assessor
+        // itself, so every tool call appeared twice in the audit trail.
+        using var provider = Build(("Intake:Assessor", "Rules"));
+
+        var runner = provider.GetRequiredService<Assessment.AssessmentRunner>();
+
+        Assert.Equal("rules", runner.AssessorName, ignoreCase: true);
+        Assert.False(runner.HasRouteFloor);
+    }
+
+    [Fact]
     public async Task The_azure_implementations_are_chosen_by_configuration_and_need_no_keys()
     {
         await using var provider = Build(

@@ -45,7 +45,7 @@ re-checks on every push.
 | Cost per claim | £0.00 (no model) | £0.60 or less: not meaningful yet |
 | p95 time to process a claim | 2.6 ms in process (no model, no network) | 90 s: not meaningful yet |
 
-Tests: 845 .NET (Domain 116, API 208, Pipeline 377, Evals 144), 60 UI (Vitest) and 14 Python (11 of them need a Bicep CLI and are skipped without one), all passing; the build has 0 warnings.
+Tests: 846 .NET (Domain 116, API 208, Pipeline 378, Evals 144), 60 UI (Vitest) and 14 Python (11 of them need a Bicep CLI and are skipped without one), all passing; the build has 0 warnings.
 
 ## What it looks like
 
@@ -63,7 +63,7 @@ but the premises were unoccupied for 45 days (exclusion 4.3) and the claim was n
 
 ![Cited clauses expanded](docs/images/03-cited-clause.png)
 
-Every tool call the assessor made is in the audit trail, with arguments reduced to ids and lengths. (In local mode each call appears twice: the rules assessor also runs as the route floor, and the trail records both runs. A known quirk, not a bug in the data.)
+Every tool call the assessor made is in the audit trail, with arguments reduced to ids and lengths.
 
 ![Audit trail of tool calls](docs/images/04-audit-trail.png)
 
@@ -108,7 +108,7 @@ cd claims-intake-accelerator
 
 dotnet restore --locked-mode
 dotnet build --no-restore
-dotnet test --no-build                       # 845 tests
+dotnet test --no-build                       # 846 tests
 dotnet run --project evals/ClaimsIntake.Evals -- --split test --thresholds evals/thresholds.json   # the evaluation gate, offline, a few seconds
 
 cd ui; npm ci; npm test; npm run build; cd ..   # 60 UI tests, then a production build
@@ -152,7 +152,7 @@ has not been run elsewhere. What each sample is meant to show is in [samples/](s
 
 ## Verified and not verified
 
-**Verified here, by running it:** the build (0 warnings) and 845 .NET, 60 UI and 14 Python tests; the evaluation gate; the whole flow on a laptop from a
+**Verified here, by running it:** the build (0 warnings) and 846 .NET, 60 UI and 14 Python tests; the evaluation gate; the whole flow on a laptop from a
 fresh clone (drop a document, see it in the API and UI, 401 and 403 behaviour); the Bicep compiles and lints with Bicep 0.49.2 and the role
 matrix holds against the compiled template; one trace id from the watcher to the API (the Milestone 6b smoke run).
 

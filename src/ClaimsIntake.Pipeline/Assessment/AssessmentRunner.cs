@@ -25,6 +25,9 @@ public sealed partial class AssessmentRunner(
 {
     public string AssessorName => assessor.Name;
 
+    /// <summary>True when a deterministic rules check runs beside the assessor as a route floor.</summary>
+    public bool HasRouteFloor => routeFloor is not null;
+
     public async Task<AssessmentOutcome> RunAsync(AssessmentContext context, CancellationToken cancellationToken)
     {
         // The tools are bound to this claim's own policy and wording by the code, from the pipeline's lookup (AI-01, AI-06).
