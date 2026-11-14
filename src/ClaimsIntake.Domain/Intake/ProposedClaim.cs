@@ -18,6 +18,9 @@ namespace ClaimsIntake.Domain.Intake;
 /// <param name="SourcePages">The text read from the document, one entry per page.</param>
 /// <param name="Assessment">Coverage findings against the policy wording, when the pipeline ran an assessor.</param>
 /// <param name="AuditTrail">The tool calls made while assessing. The API stores them in its audit log.</param>
+/// <param name="NotifiedOn">The date the claim was notified: the date the document states, otherwise the date it was received.
+/// Null when the input-quality gate stopped the document before extraction.</param>
+/// <param name="NotifiedOnSource"><c>document</c> when the document states the date, <c>received</c> when it comes from the received timestamp.</param>
 public sealed record ProposedClaim(
     string DocumentId,
     DateTimeOffset ReceivedAt,
@@ -25,7 +28,9 @@ public sealed record ProposedClaim(
     IReadOnlyList<ValidationIssue> Issues,
     IReadOnlyList<string> SourcePages,
     ClaimAssessment? Assessment = null,
-    IReadOnlyList<AuditEntry>? AuditTrail = null)
+    IReadOnlyList<AuditEntry>? AuditTrail = null,
+    DateOnly? NotifiedOn = null,
+    string? NotifiedOnSource = null)
 {
     /// <summary>JSON settings shared by every producer and consumer of the hand-off message.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new(JsonSerializerDefaults.Web)

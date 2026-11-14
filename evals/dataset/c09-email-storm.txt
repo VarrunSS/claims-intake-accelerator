@@ -1,0 +1,16 @@
+From: Sam Brindle <sam@millbrook.example>
+To: claims@thamesmutual.example
+Date: Mon, 9 Nov 2026 13:59:02 +0000
+Subject: Please can you open a claim
+
+Hi,
+
+On behalf of Millbrook Garden Centres Ltd I am writing to report a loss. We have policy TM-CP-100010.
+
+It happened on the night of 7 November 2026.
+Storm damage. High winds tore tiles from the roof above the cold store and rain came in. Shelving and boxed goods were damaged.
+
+Our estimate of the cost is £9,800.
+
+Thanks,
+Sam

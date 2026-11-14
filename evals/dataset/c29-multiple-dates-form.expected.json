@@ -1,0 +1,35 @@
+{
+  "id": "c29-multiple-dates-form",
+  "file": "c29-multiple-dates-form.pdf",
+  "split": "test",
+  "family": "multiple_dates",
+  "tags": [
+    "multiple_dates",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-04T08:03:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100006",
+      "claimant_name": "Wren & Co Estate Agents",
+      "loss_date": "2026-10-30",
+      "cause": "water",
+      "estimated_amount_gbp": 5300.0,
+      "notification_date": "2026-11-04"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

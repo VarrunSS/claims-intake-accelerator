@@ -1,0 +1,13 @@
+From: Dan Whitlock <dan@greyfriars.example>
+To: claims@thamesmutual.example
+Date: Thu, 5 Nov 2026 10:59:02 +0000
+Subject: Loss at our premises
+
+Hi,
+
+Claim for Greyfriars Bookbinders. We have policy TM-CP-100009.
+Loss on 4 November 2026.
+A water pipe burst in the back office overnight. Two display units and the carpet were damaged by the water.
+
+Thanks,
+Dan

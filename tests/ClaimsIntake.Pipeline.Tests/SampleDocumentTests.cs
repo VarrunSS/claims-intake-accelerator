@@ -78,8 +78,9 @@ public class SampleDocumentTests
         Assert.Equal("2026-11-09", fields[ClaimFields.LossDate].Value);
         Assert.Equal("£6,000", fields[ClaimFields.EstimatedAmount].Value); // Not the £250 excess.
 
-        // The sender is not the insured, and nothing is labelled, so every guess scores below the 0.80 threshold.
-        Assert.Equal("Priya Nair", fields[ClaimFields.ClaimantName].Value);
+        // The sender is not the insured. The insured is named in the sentence "I am the office manager at ...", which is not a
+        // labelled field, so it is found with confidence 0.70 and every guess scores below the 0.80 threshold.
+        Assert.Equal("Wren & Co Estate Agents", fields[ClaimFields.ClaimantName].Value);
         Assert.All(
             new[] { ClaimFields.ClaimantName, ClaimFields.LossDate, ClaimFields.LossDescription, ClaimFields.EstimatedAmount },
             name => Assert.True(fields[name].Confidence < ClaimValidator.LowConfidenceThreshold, name));

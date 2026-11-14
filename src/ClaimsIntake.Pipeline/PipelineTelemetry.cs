@@ -20,6 +20,8 @@ public static class PipelineTelemetry
 
     // Stage names.
     public const string StageProcess = "process";
+    public const string StageInputQuality = "input_quality";
+    public const string StageInputQualityText = "input_quality_text";
     public const string StageExtractText = "extract_text";
     public const string StageExtractFields = "extract_fields";
     public const string StageLookupPolicy = "lookup_policy";

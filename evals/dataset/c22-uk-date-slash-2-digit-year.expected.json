@@ -1,0 +1,35 @@
+{
+  "id": "c22-uk-date-slash-2-digit-year",
+  "file": "c22-uk-date-slash-2-digit-year.pdf",
+  "split": "test",
+  "family": "uk_dates",
+  "tags": [
+    "pdf",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-06T12:58:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100008",
+      "claimant_name": "Ashdown Veterinary Group",
+      "loss_date": "2026-11-03",
+      "cause": "fire",
+      "estimated_amount_gbp": 7200.0,
+      "notification_date": "2026-11-06"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

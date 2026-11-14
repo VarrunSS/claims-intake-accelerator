@@ -1,0 +1,36 @@
+{
+  "id": "c05-clean-storm-pdf",
+  "file": "c05-clean-storm-pdf.pdf",
+  "split": "test",
+  "family": "clean_pdf",
+  "tags": [
+    "clean",
+    "pdf",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-02T11:34:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100003",
+      "claimant_name": "Harcourt Dental Practice",
+      "loss_date": "2026-10-28",
+      "cause": "storm",
+      "estimated_amount_gbp": 4200.0,
+      "notification_date": "2026-11-02"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.4"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

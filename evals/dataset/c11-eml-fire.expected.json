@@ -1,0 +1,34 @@
+{
+  "id": "c11-eml-fire",
+  "file": "c11-eml-fire.eml",
+  "split": "test",
+  "family": "email_eml",
+  "tags": [
+    "eml"
+  ],
+  "context": {
+    "receivedAt": "2026-10-22T10:23:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100010",
+      "claimant_name": "Millbrook Garden Centres Ltd",
+      "loss_date": "2026-10-19",
+      "cause": "fire",
+      "estimated_amount_gbp": 14250.0,
+      "notification_date": "2026-10-22"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

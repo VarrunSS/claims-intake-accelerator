@@ -1,0 +1,35 @@
+{
+  "id": "c23-uk-date-slash-4-digit-year",
+  "file": "c23-uk-date-slash-4-digit-year.txt",
+  "split": "test",
+  "family": "uk_dates",
+  "tags": [
+    "email",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-04T09:59:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100005",
+      "claimant_name": "Pemberton Road Haulage Ltd",
+      "loss_date": "2026-11-03",
+      "cause": "impact",
+      "estimated_amount_gbp": 3300.0,
+      "notification_date": "2026-11-04"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.5"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

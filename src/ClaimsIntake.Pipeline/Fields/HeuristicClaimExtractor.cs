@@ -17,7 +17,7 @@ namespace ClaimsIntake.Pipeline.Fields;
 /// </remarks>
 public sealed class HeuristicClaimExtractor : IClaimExtractor
 {
-    private const string Date =
+    internal const string Date =
         @"(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?" +
         @"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?,?\s+\d{4})";
 
@@ -51,6 +51,12 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
         @"(?<v>(?:[A-Z][A-Za-z0-9'’.\-]*\s+(?:&\s+)?){1,5}(?:Ltd|Limited|LLP|PLC|Group|Practice)\b\.?)",
         RegexOptions.CultureInvariant, Timeout);
 
+    // "I am the office manager at Wren & Co Estate Agents", "claim for Brindle and Marsh Ltd", "on behalf of Hale Haulage".
+    // Case-sensitive: it needs capitalised words, so "at the premises" does not match.
+    private static readonly Regex ClaimantContextual = new(
+        @"\b(?:at|for|behalf\s+of|from)\s+(?<v>[A-Z][A-Za-z0-9'’\-]*(?:\s+(?:&|and|of|[A-Z][A-Za-z0-9'’\-]*))*)",
+        RegexOptions.CultureInvariant, Timeout);
+
     private static readonly Regex ClaimantFromHeader = Rx(@"^[ \t]*from\s*:\s*""?(?<v>[^<""\n]{2,60}?)""?\s*<", RegexOptions.Multiline);
 
     private static readonly Regex DescriptionLabelled = Rx(
@@ -64,6 +70,18 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
 
     private static readonly Regex AmountLabelled = Rx(
         @"(?:estimated\s+(?:amount|cost|loss|value|damage)|amount\s+claimed|claim\s+amount|claim\s+value|total\s+(?:loss|claim)|approx(?:imate|\.)?\s+(?:cost|value)|estimate)[^\d£\n]{0,25}(?<v>£\s?\d[\d,]*(?:\.\d{1,2})?)");
+
+    private static readonly Regex NotificationLine =
+        Rx(@"date\s+(?:notified|reported|received)|notification\s+date|notified\s+on|reported\s+on");
+
+    private static readonly HashSet<string> ContextualStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "I", "We", "Thames", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "January", "February", "March",
+        "April", "May", "June", "July", "August", "September", "October", "November", "December",
+    };
+
+    private static readonly Regex AmountWords =
+        Rx(@"\b(?<v>(?:(?:" + NumberWords.Pattern + @")[\s-]+)+)pounds?\b");
 
     private static readonly Regex AmountAny = Rx(@"(?<v>£\s?\d[\d,]*(?:\.\d{1,2})?)");
 
@@ -131,6 +149,13 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
             return Field(doc, ClaimFields.ClaimantName, hit, 0.62);
         }
 
+        hit = First(pages, ClaimantContextual, "v", g => g.Trim().TrimEnd('.', ',', ';'),
+            accept: (m, _) => m.Groups["v"].Value.Trim().TrimEnd('.', ',', ';').Length >= 4 && !ContextualStopWords.Contains(m.Groups["v"].Value.Split(' ')[0].TrimEnd('.', ',', ';')));
+        if (hit is not null)
+        {
+            return Field(doc, ClaimFields.ClaimantName, hit, 0.70);
+        }
+
         // The sender of an email is often a broker, not the insured, so this is a weak guess.
         hit = First(pages, ClaimantFromHeader, "v", g => g.Trim());
         return hit is null
@@ -152,7 +177,7 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
         {
             confidence = 0.40;
             // An email's own Date: header is when it was sent, not when the loss happened.
-            hit = First(pages, DateAny, "v", accept: (m, page) => !OnHeaderLine(m.Index, page));
+            hit = First(pages, DateAny, "v", accept: (m, page) => !OnHeaderLine(m.Index, page) && !OnNotificationLine(m.Index, page));
         }
 
         if (hit is null)
@@ -206,6 +231,15 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
             return Field(doc, ClaimFields.EstimatedAmount, hit, 0.90);
         }
 
+        // An amount written in words ("twelve thousand pounds"). Read as an amount only when it is not the excess.
+        hit = First(pages, AmountWords, "v", g => NumberWords.TryParse(g, out var words) ? $"£{words:N0}" : "",
+            accept: (m, page) => NumberWords.TryParse(m.Groups["v"].Value, out _)
+                && !Preceded(m.Index, page, "excess") && !page.AsSpan(m.Index + m.Length, Math.Min(15, page.Length - m.Index - m.Length)).Contains("excess", StringComparison.OrdinalIgnoreCase));
+        if (hit is not null)
+        {
+            return Field(doc, ClaimFields.EstimatedAmount, hit, 0.80);
+        }
+
         // A bare pound amount may be the excess or a limit rather than the loss, so it scores low.
         hit = First(pages, AmountAny, "v", g => g.Trim(), accept: (m, page) => !Preceded(m.Index, page, "excess"));
         return hit is null
@@ -247,6 +281,13 @@ public sealed class HeuristicClaimExtractor : IClaimExtractor
         var lineEnd = page.IndexOf('\n', index);
         var line = page[lineStart..(lineEnd < 0 ? page.Length : lineEnd)];
         return HeaderLine.IsMatch(line);
+    }
+
+    /// <summary>True when the date sits on a line that says when the claim was notified, which is not the date of loss.</summary>
+    private static bool OnNotificationLine(int index, string page)
+    {
+        var lineStart = index == 0 ? 0 : page.LastIndexOf('\n', index - 1) + 1;
+        return NotificationLine.IsMatch(page[lineStart..index]);
     }
 
     private static bool Preceded(int index, string page, string word)

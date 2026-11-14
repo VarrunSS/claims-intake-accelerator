@@ -1,0 +1,35 @@
+{
+  "id": "c08-email-water",
+  "file": "c08-email-water.txt",
+  "split": "test",
+  "family": "email_txt",
+  "tags": [
+    "email",
+    "name_variant"
+  ],
+  "context": {
+    "receivedAt": "2026-11-03T08:55:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100008",
+      "claimant_name": "Ashdown Veterinary Group",
+      "loss_date": "2026-10-30",
+      "cause": "water",
+      "estimated_amount_gbp": 5200.0,
+      "notification_date": "2026-11-03"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

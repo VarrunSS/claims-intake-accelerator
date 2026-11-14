@@ -1,0 +1,35 @@
+{
+  "id": "c28-ocr-noise-form",
+  "file": "c28-ocr-noise-form.pdf",
+  "split": "test",
+  "family": "garbled_layout",
+  "tags": [
+    "ocr_noise",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-27T10:52:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100010",
+      "claimant_name": "Millbrook Garden Centres Ltd",
+      "loss_date": "2026-10-24",
+      "cause": "theft",
+      "estimated_amount_gbp": 6900.0,
+      "notification_date": "2026-10-27"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.3"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

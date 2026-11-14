@@ -99,7 +99,7 @@ public class ClaimIntakePipelineTests
 
         var byStage = spans.Spans.ToDictionary(s => (string)s.GetTagItem(PipelineTelemetry.Stage)!);
         Assert.Equal(
-            ["extract_fields", "extract_text", "handoff", "lookup_policy", "process", "validate"],
+            ["extract_fields", "extract_text", "handoff", "input_quality", "input_quality_text", "lookup_policy", "process", "validate"],
             byStage.Keys.Order());
 
         foreach (var span in byStage.Values)
@@ -187,21 +187,29 @@ public class ClaimIntakePipelineTests
     }
 
     [Fact]
-    public async Task Empty_oversized_and_unreadable_documents_are_refused_before_any_hand_off()
+    public async Task An_unsupported_file_type_is_refused_before_any_hand_off()
+    {
+        var sink = new RecordingSink();
+
+        await Assert.ThrowsAsync<UnreadableDocumentException>(() =>
+            Docs.Pipeline(sink: sink).ProcessAsync(Docs.Text("x.docx", "hello"), CancellationToken.None));
+
+        Assert.Empty(sink.Claims);
+    }
+
+    [Fact]
+    public async Task Empty_and_oversized_documents_are_handed_to_a_person_with_the_reason()
     {
         var sink = new RecordingSink();
         var pipeline = Docs.Pipeline(sink: sink);
 
-        await Assert.ThrowsAsync<UnreadableDocumentException>(() =>
-            pipeline.ProcessAsync(new IntakeDocument("inbox/e.txt", "e.txt", BinaryData.FromBytes([])), CancellationToken.None));
-        await Assert.ThrowsAsync<UnreadableDocumentException>(() =>
-            pipeline.ProcessAsync(
-                new IntakeDocument("inbox/big.txt", "big.txt", BinaryData.FromBytes(new byte[ClaimIntakePipeline.MaxDocumentBytes + 1])),
-                CancellationToken.None));
-        await Assert.ThrowsAsync<UnreadableDocumentException>(() =>
-            pipeline.ProcessAsync(Docs.Text("x.docx", "hello"), CancellationToken.None));
+        await pipeline.ProcessAsync(new IntakeDocument("inbox/e.txt", "e.txt", BinaryData.FromBytes([])), CancellationToken.None);
+        await pipeline.ProcessAsync(
+            new IntakeDocument("inbox/big.txt", "big.txt", BinaryData.FromBytes(new byte[ClaimIntakePipeline.MaxDocumentBytes + 1])),
+            CancellationToken.None);
 
-        Assert.Empty(sink.Claims);
+        Assert.Equal([IssueCode.UnreadableDocument, IssueCode.DocumentTooLarge], sink.Claims.Select(c => Assert.Single(c.Issues).Code));
+        Assert.All(sink.Claims, c => Assert.Equal(IssueSeverity.Error, c.Issues[0].Severity));
     }
 
     [Fact]

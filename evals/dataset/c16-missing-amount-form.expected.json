@@ -1,0 +1,35 @@
+{
+  "id": "c16-missing-amount-form",
+  "file": "c16-missing-amount-form.pdf",
+  "split": "test",
+  "family": "missing_amount",
+  "tags": [
+    "missing_field",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-09T10:14:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100007",
+      "claimant_name": "Tideway Catering Supplies Ltd",
+      "loss_date": "2026-11-06",
+      "cause": "refrigeration",
+      "estimated_amount_gbp": null,
+      "notification_date": "2026-11-09"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.6"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

@@ -1,0 +1,14 @@
+From: Dan Whitlock <dan@kestrel.example>
+To: claims@thamesmutual.example
+Date: Fri, 6 Nov 2026 15:00:02 +0000
+Subject: Please can you open a claim
+
+Hi,
+
+Claim for Kestrel Print & Packaging Ltd. I do not have the policy number to hand.
+Loss on 5 November 2026.
+We were burgled overnight. Forced entry through a window by the stockroom; Two pallets of coated board were taken.
+Estimated cost £2,900.
+
+Thanks,
+Dan

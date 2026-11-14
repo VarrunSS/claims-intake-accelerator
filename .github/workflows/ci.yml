@@ -77,34 +77,50 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  # Milestone 4 adds the evaluation job. It scores the extraction agent against the synthetic claims in
-  # evals/ and fails the build below the thresholds in docs/01-success-metrics.md. It is commented out
-  # because there is no agent to evaluate yet. Like the FHIR MCP evals, it will skip itself on pull
-  # requests from forks, which never receive repository secrets.
-  #
-  # evals:
-  #   needs: build-test
-  #   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 30
-  #   permissions:
-  #     id-token: write   # sign in to Azure with OIDC; no stored secret
-  #     contents: read
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.12"
-  #     - run: pip install -r evals/requirements.txt
-  #     - uses: azure/login@v2
-  #       with:
-  #         client-id: ${{ vars.AZURE_CLIENT_ID }}
-  #         tenant-id: ${{ vars.AZURE_TENANT_ID }}
-  #         subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-  #     - name: Run evals
-  #       run: python -m evals.run --out eval-results.json --fail-below evals/thresholds.json
-  #     - uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: eval-results
-  #         path: eval-results.json
+  # The evaluation gate (Milestone 4). It runs the held-out test split of evals/dataset through the local pipeline (heuristic
+  # extractor, rules assessor), in process, with no credentials, so it also runs on pull requests from forks. It fails the
+  # build when a metric falls below evals/thresholds.json. Real-model evaluation arrives in Milestone 5.
+  evals:
+    needs: build-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run the evaluation on the test split
+        id: eval
+        run: |
+          set +e
+          dotnet run -c Release --project evals/ClaimsIntake.Evals -- --split test --run-id ci --out eval-results --thresholds evals/thresholds.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Write the report to the job summary
+        if: always()
+        run: |
+          if [ -f eval-results/ci/report.md ]; then
+            cat eval-results/ci/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The evaluation did not produce a report." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: |
+            eval-results/ci/report.md
+            eval-results/ci/results.json
+          if-no-files-found: warn
+
+      # The run above never fails the step itself, so the report is always written and uploaded first.
+      - name: Fail the build below threshold
+        if: steps.eval.outputs.exit_code != '0'
+        run: |
+          echo "The evaluation exited with code ${{ steps.eval.outputs.exit_code }}: 1 means a metric is below evals/thresholds.json, 2 means it could not run."
+          exit 1

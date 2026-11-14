@@ -189,4 +189,51 @@ public class HeuristicClaimExtractorTests
 
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
     }
+
+    [Theory]
+    [InlineData("twelve thousand pounds", "£12,000")]
+    [InlineData("twelve thousand five hundred pounds", "£12,500")]
+    [InlineData("eight thousand seven hundred and fifty pounds", "£8,750")]
+    [InlineData("four thousand two hundred pounds", "£4,200")]
+    [InlineData("twenty-five pounds", "£25")]
+    public async Task An_amount_written_in_words_is_read(string words, string expected)
+    {
+        var fields = await Extract($"Policy number: TM-CP-100001\nWe estimate the damage at {words}.");
+
+        Assert.Equal(expected, fields[ClaimFields.EstimatedAmount].Value);
+        Assert.Equal(0.80, fields[ClaimFields.EstimatedAmount].Confidence);
+    }
+
+    [Fact]
+    public async Task An_excess_written_in_words_is_not_the_loss_amount()
+    {
+        var fields = await Extract("The excess is two hundred and fifty pounds.");
+
+        Assert.Null(fields[ClaimFields.EstimatedAmount].Value);
+    }
+
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("hundred", false)]
+    [InlineData("banana thousand", false)]
+    [InlineData("one hundred", true)]
+    public void Number_words_that_make_no_number_are_refused(string text, bool ok) =>
+        Assert.Equal(ok, NumberWords.TryParse(text, out _));
+
+    [Fact]
+    public async Task The_organisation_named_in_an_email_sentence_is_the_claimant_with_moderate_confidence()
+    {
+        var fields = await Extract("From: Dan <dan@x.example>\n\nI am the office manager at Wren & Co Estate Agents. Sorry to write by email.");
+
+        Assert.Equal("Wren & Co Estate Agents", fields[ClaimFields.ClaimantName].Value);
+        Assert.Equal(0.70, fields[ClaimFields.ClaimantName].Confidence);
+    }
+
+    [Fact]
+    public async Task Lowercase_text_after_at_is_not_a_claimant()
+    {
+        var fields = await Extract("There was a fire at the premises last night.");
+
+        Assert.Null(fields[ClaimFields.ClaimantName].Value);
+    }
 }

@@ -9,6 +9,7 @@ using ClaimsIntake.Pipeline.Policy;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
+using ClaimsIntake.Pipeline.Quality;
 using ClaimsIntake.Pipeline.Text;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -152,10 +153,16 @@ public static class ServiceCollectionExtensions
                 break;
         }
 
+        // Input-quality checks (ADR 0007). Intake:Quality:MaxDocumentBytes, MinTextCharacters and MinClaimTerms override the defaults.
+        var quality = new InputQualityOptions();
+        section.GetSection("Quality").Bind(quality);
+        services.AddSingleton<IDocumentHashStore, InMemoryDocumentHashStore>();
+        services.AddSingleton(sp => InputQualityGate.CreateDefault(quality, sp.GetRequiredService<IDocumentHashStore>()));
+
         services.AddSingleton(sp => new ClaimIntakePipeline(
             sp.GetRequiredService<IDocumentTextExtractor>(), sp.GetRequiredService<IClaimExtractor>(), sp.GetRequiredService<IPolicyLookup>(),
             sp.GetRequiredService<IClaimSink>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>()));
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>(), sp.GetRequiredService<InputQualityGate>()));
         return services;
     }
 

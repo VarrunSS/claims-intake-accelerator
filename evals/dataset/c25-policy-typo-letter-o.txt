@@ -1,0 +1,14 @@
+From: Hannah Okafor <hannah@harcourt.example>
+To: claims@thamesmutual.example
+Date: Fri, 6 Nov 2026 15:48:02 +0000
+Subject: Please can you open a claim
+
+Hi,
+
+Claim for Harcourt Dental Practice. We have policy TM-CP-1OO003.
+Loss on 5 November 2026.
+The water tank in the roof space overflowed into the treatment room. Shelving and boxed goods were badly damaged.
+Estimated cost £4,800.
+
+Thanks,
+Hannah

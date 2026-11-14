@@ -1,0 +1,35 @@
+{
+  "id": "c20-amount-gbp-form",
+  "file": "c20-amount-gbp-form.pdf",
+  "split": "test",
+  "family": "amount_words",
+  "tags": [
+    "amount_words",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-19T14:21:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100008",
+      "claimant_name": "Ashdown Veterinary Group",
+      "loss_date": "2026-10-15",
+      "cause": "theft",
+      "estimated_amount_gbp": 15200.0,
+      "notification_date": "2026-10-19"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.3"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

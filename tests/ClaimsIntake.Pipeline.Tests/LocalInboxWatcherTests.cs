@@ -1,3 +1,4 @@
+using ClaimsIntake.Domain;
 using ClaimsIntake.Pipeline.Handoff;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -61,7 +62,7 @@ public sealed class LocalInboxWatcherTests : IDisposable
     }
 
     [Fact]
-    public async Task An_unreadable_pdf_is_moved_to_failed_and_does_not_stop_the_others()
+    public async Task A_corrupt_pdf_is_handed_to_a_person_like_any_other_document_and_does_not_stop_the_others()
     {
         var sink = new RecordingSink();
         Drop("00-broken.pdf", "not a pdf"u8.ToArray());
@@ -69,9 +70,11 @@ public sealed class LocalInboxWatcherTests : IDisposable
 
         var handedOff = await Watcher(sink).ScanOnceAsync(CancellationToken.None);
 
-        Assert.Equal(1, handedOff);
-        Assert.Equal(["00-broken.pdf"], Names(LocalInboxWatcher.FailedFolder));
-        Assert.Equal(["02-theft-clean.pdf"], Names(LocalInboxWatcher.ProcessedFolder));
+        // The input-quality gate turns the corrupt PDF into a claim for a person to read, with the reason.
+        Assert.Equal(2, handedOff);
+        Assert.Empty(Names(LocalInboxWatcher.FailedFolder));
+        Assert.Equal(["00-broken.pdf", "02-theft-clean.pdf"], Names(LocalInboxWatcher.ProcessedFolder));
+        Assert.Equal(IssueCode.ProtectedOrCorruptDocument, Assert.Single(sink.Claims[0].Issues).Code);
     }
 
     [Fact]

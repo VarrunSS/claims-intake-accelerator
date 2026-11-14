@@ -1,0 +1,48 @@
+{
+  "id": "c39-duplicate-claim-chasing-email",
+  "file": "c39-duplicate-claim-chasing-email.txt",
+  "split": "test",
+  "family": "duplicate_claim",
+  "tags": [
+    "duplicate_claim",
+    "email"
+  ],
+  "context": {
+    "receivedAt": "2026-11-13T13:17:00Z",
+    "existingClaims": [
+      {
+        "reference": "LEG-0042",
+        "source": "legacy",
+        "policyNumber": "TM-CP-100001",
+        "lossDate": "2026-11-03",
+        "amountGbp": 12500.0,
+        "status": "Submitted"
+      }
+    ],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100001",
+      "claimant_name": "Brindle & Marsh Joinery Ltd",
+      "loss_date": "2026-11-03",
+      "cause": "water",
+      "estimated_amount_gbp": 12400.0,
+      "notification_date": "2026-11-13"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      },
+      {
+        "kind": "PossibleDuplicate",
+        "clauseRef": ""
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

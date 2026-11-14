@@ -113,7 +113,9 @@ public sealed partial class LocalInboxWatcher(
 
         try
         {
-            await pipeline.ProcessAsync(new IntakeDocument(documentId, name, content), cancellationToken);
+            // The file's creation time is when it reached the inbox: the fallback notification date (Milestone 4 date fix).
+            var receivedAt = new DateTimeOffset(File.GetCreationTimeUtc(path), TimeSpan.Zero);
+            await pipeline.ProcessAsync(new IntakeDocument(documentId, name, content, receivedAt), cancellationToken);
             _attempts.TryRemove(path, out _);
             Move(path, settings.Path, ProcessedFolder);
             return true;

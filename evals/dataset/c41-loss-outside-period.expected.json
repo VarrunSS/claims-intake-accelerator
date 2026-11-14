@@ -1,0 +1,37 @@
+{
+  "id": "c41-loss-outside-period",
+  "file": "c41-loss-outside-period.pdf",
+  "split": "test",
+  "family": "outside_period",
+  "tags": [
+    "outside_period",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-12T11:10:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100004",
+      "claimant_name": "Lowther Fabrication Works Ltd",
+      "loss_date": "2026-11-08",
+      "cause": "breakdown",
+      "estimated_amount_gbp": 21000.0,
+      "notification_date": "2026-11-12"
+    },
+    "issueCodes": [
+      "LossDateOutsidePolicyPeriod"
+    ],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

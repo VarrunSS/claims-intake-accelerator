@@ -1,0 +1,37 @@
+{
+  "id": "c26-garbled-freezer",
+  "file": "c26-garbled-freezer.pdf",
+  "split": "dev",
+  "family": "garbled_layout",
+  "tags": [
+    "garbled",
+    "ocr_noise",
+    "pdf",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-12T08:55:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100007",
+      "claimant_name": "Tideway Catering Supplies Ltd",
+      "loss_date": "2026-11-11",
+      "cause": "refrigeration",
+      "estimated_amount_gbp": 3100.0,
+      "notification_date": "2026-11-12"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.6"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "received"
+  }
+}

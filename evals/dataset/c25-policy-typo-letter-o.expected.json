@@ -1,0 +1,32 @@
+{
+  "id": "c25-policy-typo-letter-o",
+  "file": "c25-policy-typo-letter-o.txt",
+  "split": "test",
+  "family": "policy_typo",
+  "tags": [
+    "email",
+    "policy_typo"
+  ],
+  "context": {
+    "receivedAt": "2026-11-06T12:51:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-1OO003",
+      "claimant_name": "Harcourt Dental Practice",
+      "loss_date": "2026-11-05",
+      "cause": "water",
+      "estimated_amount_gbp": 4800.0,
+      "notification_date": "2026-11-06"
+    },
+    "issueCodes": [
+      "UnknownPolicy"
+    ],
+    "findings": [],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

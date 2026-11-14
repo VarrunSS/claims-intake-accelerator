@@ -1,0 +1,35 @@
+{
+  "id": "c10-eml-impact",
+  "file": "c10-eml-impact.eml",
+  "split": "dev",
+  "family": "email_eml",
+  "tags": [
+    "eml",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-11T13:21:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100005",
+      "claimant_name": "Pemberton Road Haulage Ltd",
+      "loss_date": "2026-11-10",
+      "cause": "impact",
+      "estimated_amount_gbp": 5400.0,
+      "notification_date": "2026-11-11"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.5"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

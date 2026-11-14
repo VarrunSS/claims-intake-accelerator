@@ -1,0 +1,39 @@
+{
+  "id": "c34-exclusion-unoccupied-water",
+  "file": "c34-exclusion-unoccupied-water.pdf",
+  "split": "test",
+  "family": "exclusion_unoccupied",
+  "tags": [
+    "exclusion",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-08T14:10:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100008",
+      "claimant_name": "Ashdown Veterinary Group",
+      "loss_date": "2026-11-05",
+      "cause": "water",
+      "estimated_amount_gbp": 15200.0,
+      "notification_date": "2026-11-08"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      },
+      {
+        "kind": "PossibleExclusion",
+        "clauseRef": "4.3"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

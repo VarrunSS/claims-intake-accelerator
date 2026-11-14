@@ -1,0 +1,6 @@
+From: Office <office@thamesmutual.example>
+To: all@thamesmutual.example
+Date: Wed, 11 Nov 2026 10:00:00 +0000
+Subject: Team lunch
+
+Hi all, the team lunch on Friday is moved to one o'clock because the meeting room is booked for training in the morning. Please let me know what you would like to eat and whether you have any dietary needs.

@@ -34,7 +34,7 @@ public sealed class AzureDocumentIntelligenceExtractor(IDocumentLayoutAnalyzer a
         var text = new DocumentText(pages);
         if (text.IsEmpty)
         {
-            throw new UnreadableDocumentException("Document Intelligence found no text in the document.");
+            throw new UnreadableDocumentException("Document Intelligence found no text in the document.") { Kind = UnreadableKind.NoText };
         }
 
         return text;

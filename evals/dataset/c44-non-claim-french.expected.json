@@ -1,0 +1,30 @@
+{
+  "id": "c44-non-claim-french",
+  "file": "c44-non-claim-french.txt",
+  "split": "dev",
+  "family": "non_claim",
+  "tags": [
+    "non_claim"
+  ],
+  "context": {
+    "receivedAt": "2026-11-14T09:00:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": null,
+      "claimant_name": null,
+      "loss_date": null,
+      "cause": null,
+      "estimated_amount_gbp": null,
+      "notification_date": null
+    },
+    "issueCodes": [
+      "NotAClaim"
+    ],
+    "findings": [],
+    "route": "SeniorReview"
+  }
+}

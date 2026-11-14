@@ -1,0 +1,30 @@
+{
+  "id": "c50-quality-oversized",
+  "file": "c50-quality-oversized.txt",
+  "split": "test",
+  "family": "quality",
+  "tags": [
+    "quality_gate"
+  ],
+  "context": {
+    "receivedAt": "2026-11-14T09:00:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": 300
+  },
+  "expected": {
+    "fields": {
+      "policy_number": null,
+      "claimant_name": null,
+      "loss_date": null,
+      "cause": null,
+      "estimated_amount_gbp": null,
+      "notification_date": null
+    },
+    "issueCodes": [
+      "DocumentTooLarge"
+    ],
+    "findings": [],
+    "route": "SeniorReview"
+  }
+}

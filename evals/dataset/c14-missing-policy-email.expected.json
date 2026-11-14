@@ -1,0 +1,32 @@
+{
+  "id": "c14-missing-policy-email",
+  "file": "c14-missing-policy-email.txt",
+  "split": "test",
+  "family": "missing_policy",
+  "tags": [
+    "email",
+    "missing_field"
+  ],
+  "context": {
+    "receivedAt": "2026-11-06T13:31:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": null,
+      "claimant_name": "Kestrel Print & Packaging Ltd",
+      "loss_date": "2026-11-05",
+      "cause": "theft",
+      "estimated_amount_gbp": 2900.0,
+      "notification_date": "2026-11-06"
+    },
+    "issueCodes": [
+      "MissingPolicyNumber"
+    ],
+    "findings": [],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

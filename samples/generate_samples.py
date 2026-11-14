@@ -4,6 +4,10 @@
 Everything here is made up: Thames Mutual Insurance is a fictional insurer, the insured businesses and people
 are invented, and the policy numbers match the seed data in src/ClaimsIntake.Legacy/Policies.cs.
 
+Every form states a "Date notified", and every email carries its sent date, so the notification-period check does not
+depend on the day the sample is processed (Milestone 4 date fix). Only 08-garbled-layout.pdf states none: it falls back to
+the time the file was received.
+
 The documents are written to be awkward in useful ways. Each has a file name that says what is wrong with it,
 and tests/ClaimsIntake.Pipeline.Tests/SampleDocumentTests.cs checks that the pipeline finds that problem.
 
@@ -58,6 +62,7 @@ def main() -> None:
             "Policy number: TM-CP-100001",
             "Insured: Brindle & Marsh Joinery Ltd",
             "Date of loss: 3 November 2026",
+            "Date notified: 6 November 2026",
             "",
             "Description of loss: A water pipe burst in the workshop store room overnight.",
             "Timber stock and two bench saws were damaged by the water.",
@@ -76,6 +81,7 @@ def main() -> None:
             "Policy no: TM-CP-100002",
             "Insured: Kestrel Print & Packaging Ltd",
             "Date of loss: 2026-10-21",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: Forced entry through the rear loading door. Two pallets of",
             "coated board and a forklift battery were stolen.",
@@ -92,6 +98,7 @@ def main() -> None:
             "Policy number: not to hand, please look us up",
             "Insured: Harcourt Dental Practice",
             "Date of loss: 28/10/2026",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: The basement surgery flooded after heavy rain and the",
             "compressor and two chairs were damaged.",
@@ -108,6 +115,7 @@ def main() -> None:
             "Policy number: TM-CP-100003",
             "Insured: Harcourt Dental Practice",
             "Date of loss: 15 February 2027",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: Fire in the sterilisation room. Smoke damage to the",
             "autoclave and the reception area.",
@@ -124,6 +132,7 @@ def main() -> None:
             "Policy number: TM-CP-100004",
             "Insured: Lowther Fabrication Works Ltd",
             "Date of loss: 8 November 2026",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: A press brake hydraulic line failed and the machine was",
             "damaged beyond economic repair.",
@@ -215,6 +224,7 @@ def main() -> None:
             "Policy number: TM-CP-100009",
             "Insured: Greyfriars Bookbinders",
             "Date of loss: 10 November 2026",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: Heavy rain overnight overwhelmed the drains and surface water",
             "flooded the ground-floor workshop. Paper stock and two guillotines were damaged.",
@@ -231,6 +241,7 @@ def main() -> None:
             "Policy number: TM-CP-100008",
             "Insured: Ashdown Veterinary Group",
             "Date of loss: 5 October 2026",
+            "Date notified: 14 November 2026",
             "",
             "Description of loss: A pipe burst in our closed branch surgery, which had been",
             "unoccupied for 45 days while we refitted it. The floor and fittings were damaged.",

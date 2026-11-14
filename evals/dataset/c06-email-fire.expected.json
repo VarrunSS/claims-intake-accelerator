@@ -1,0 +1,35 @@
+{
+  "id": "c06-email-fire",
+  "file": "c06-email-fire.txt",
+  "split": "dev",
+  "family": "email_txt",
+  "tags": [
+    "email",
+    "uk_dates"
+  ],
+  "context": {
+    "receivedAt": "2026-11-10T09:51:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100006",
+      "claimant_name": "Wren & Co Estate Agents",
+      "loss_date": "2026-11-09",
+      "cause": "fire",
+      "estimated_amount_gbp": 6000.0,
+      "notification_date": "2026-11-10"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

@@ -1,0 +1,6 @@
+From: Offers <offers@coverdeals.example>
+To: claims@thamesmutual.example
+Date: Fri, 6 Nov 2026 07:30:00 +0000
+Subject: 20% off business insurance this month only!
+
+Limited time offer for small firms. Get a free quote in two minutes and save on your renewal. Click here to book now, or view this email in your browser. You are receiving this because you signed up to our newsletter. To unsubscribe, reply STOP.

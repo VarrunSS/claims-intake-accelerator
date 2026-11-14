@@ -12,7 +12,7 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestones 1 to 3 are done. The rest is planned and not started. Everything runs locally with only the .NET
+Milestones 1 to 4 are done. The rest is planned and not started. Everything runs locally with only the .NET
 SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been run** (see below).
 
 | # | Milestone | Status |
@@ -20,7 +20,7 @@ SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been
 | 1 | Discovery and skeleton: docs, domain rules, review API, legacy mock, Function stub, Bicep, CI | **Done** |
 | 2 | Happy path: document in, extracted and validated claim in the Angular review UI, approval writes to the legacy system | **Done locally. Azure path compiled and unit-tested only, never run** |
 | 3 | RAG and legacy tools: policy wording search with citations, agent tools, coverage assessment, audit log | **Done locally. Azure path (AI Search, agent on a real model, Table Storage) compiled and unit-tested against fakes only, never run** |
-| 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, unreadable-scan handling | Not started |
+| 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, input-quality checks | **Done locally.** Local pipeline only, on 36 held-out synthetic claims: field F1 0.968, route accuracy 88.9%, citations 100% grounded (by construction), 41.7% auto-routable. **No real-model number exists yet** |
 | 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | Not started |
 | 6 | Security and observability: split identities, PII redaction, threat model, App Insights workbook | Not started |
 | 7 | Packaging: demo, runbook, final README and measured results | Not started |
@@ -58,6 +58,7 @@ Design decisions are in [docs/adr](docs/adr):
 4. [Microsoft Agent Framework for the agent](docs/adr/0004-dotnet-agent-framework.md)
 5. [Local development mode](docs/adr/0005-local-development-mode.md)
 6. [Policy wording search, agent tools and the citation guard](docs/adr/0006-policy-wording-rag.md)
+7. [Evaluation, input quality and a deterministic notification date](docs/adr/0007-evaluation-approach.md)
 
 Customer documents: [discovery](docs/00-discovery.md) and [success metrics](docs/01-success-metrics.md).
 
@@ -127,6 +128,27 @@ and it reads the notification period from the wording. "The river flooded the ya
 through the roof" is escape of water. It will miss what its patterns do not name, and says so in the assessment's
 notes. It is the baseline the agent is compared with in Milestone 4, not a substitute for it.
 
+### Milestone 4: evaluation and data quality
+
+An evaluation suite measures the pipeline, input-quality checks send unusable documents to a person, and CI fails below a
+threshold. All of it runs offline. **It measures the local heuristic extractor and rules assessor only; real-model numbers are
+not measured yet** (Milestone 5 adds the model comparison). The data is synthetic and written by the same author as the
+extractor, which flatters it ([evals/README.md](evals/README.md), [ADR 0007](docs/adr/0007-evaluation-approach.md)).
+
+| Piece | What it does |
+|---|---|
+| `evals/dataset/` | 51 synthetic messy claims with ground truth, tagged by difficulty (clean, email, `.eml`, missing fields, amounts in words, UK dates, policy typos, garbled layout, exclusions, late notification, duplicates, non-claims, unreadable files). Generated deterministically by `evals/generate_dataset.py`. Split into 15 `dev` (look at it, tune on it) and 36 `test` (held out). |
+| `evals/ClaimsIntake.Evals` | A .NET console that runs the real pipeline in process and writes `report.md` and `results.json`: field precision, recall and F1, issue and finding precision and recall, route accuracy and confusion matrix, citation groundedness, auto-routable rate, silent error rate, latency per stage, per-tag breakdown. Exits 1 below `evals/thresholds.json`. |
+| Input-quality checks | `IInputQualityCheck`: empty or near-empty text, not English or not a claim, oversized, password-protected or corrupt PDF, duplicate file hash. A failing document reaches the review queue as a claim with one blocking issue that says why. |
+| Date fix | The notification period is measured to the date the document states, otherwise to when it was received, never to the clock at processing time. The samples state a notification date, so the demo no longer drifts. |
+| CI | The `evals` job runs the test split, writes the report to the job summary, uploads it, and fails the build below threshold. |
+
+Measured on the test split (committed baseline in `evals/results/baseline/`): field F1 **0.968** (policy number 0.982, loss
+date 0.982, claimant 0.967, amount 0.982, cause 0.889, notification date 1.000); issue precision 0.833 and recall 0.909;
+finding precision 1.000 and recall 0.853; route accuracy **88.9%**; **41.7%** auto-routable and 58.3% needing a person first.
+The weak spots are emails (route accuracy 63.6% over 11 cases), unusual phrasing of the cause of loss, and a silent-error
+rate of 7.1% (1 of 14 unflagged claims) against a 1% guardrail, which is not met.
+
 ## Quickstart
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), and [Node.js](https://nodejs.org) 22 or later
@@ -134,7 +156,8 @@ for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test            # Domain 79, API 113, Pipeline 267 (459 in all)
+dotnet test            # Domain 79, API 113, Pipeline 332, Evals 81 (605 in all)
+dotnet run --project evals/ClaimsIntake.Evals -- --split test --thresholds evals/thresholds.json   # the evaluation, offline
 cd ui && npm ci && npm test && npm run build    # UI: 35 tests, run headless in jsdom
 ```
 
@@ -157,8 +180,7 @@ curl "http://localhost:5100/claims?status=all"
 ```
 
 To see the coverage assessment, drop the clean sample and one that triggers exclusions, then read the claim and its
-audit trail (the sample dates are written around 14 November 2026, so the notification check treats later runs as
-late):
+audit trail (each sample states its own notification date, so the result does not depend on the day you run it):
 
 ```bash
 cp samples/01-water-damage-clean.pdf samples/09-flood-office-exclusion.pdf samples/10-unoccupied-late-notification.pdf local-inbox/

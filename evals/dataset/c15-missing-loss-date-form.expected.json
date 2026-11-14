@@ -1,0 +1,37 @@
+{
+  "id": "c15-missing-loss-date-form",
+  "file": "c15-missing-loss-date-form.pdf",
+  "split": "test",
+  "family": "missing_loss_date",
+  "tags": [
+    "missing_field",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-08T09:04:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100003",
+      "claimant_name": "Harcourt Dental Practice",
+      "loss_date": null,
+      "cause": "water",
+      "estimated_amount_gbp": 3100.0,
+      "notification_date": "2026-11-08"
+    },
+    "issueCodes": [
+      "MissingLossDate"
+    ],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

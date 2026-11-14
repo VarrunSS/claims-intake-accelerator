@@ -1,0 +1,35 @@
+{
+  "id": "c17-missing-amount-email",
+  "file": "c17-missing-amount-email.txt",
+  "split": "test",
+  "family": "missing_amount",
+  "tags": [
+    "email",
+    "missing_field"
+  ],
+  "context": {
+    "receivedAt": "2026-11-05T10:01:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100009",
+      "claimant_name": "Greyfriars Bookbinders",
+      "loss_date": "2026-11-04",
+      "cause": "water",
+      "estimated_amount_gbp": null,
+      "notification_date": "2026-11-05"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

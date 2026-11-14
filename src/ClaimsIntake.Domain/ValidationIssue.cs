@@ -20,6 +20,23 @@ public enum IssueCode
     LossDateOutsidePolicyPeriod,
     LowConfidence,
     InvalidAmount,
+
+    // Input quality (Milestone 4): the document is not a usable claim, so no fields were extracted. A person decides.
+
+    /// <summary>No text could be read, or too little to be a claim: typically an unreadable scan.</summary>
+    UnreadableDocument,
+
+    /// <summary>The text is not English, or is not about a claim (marketing, an invoice, a newsletter).</summary>
+    NotAClaim,
+
+    /// <summary>The document is larger than the intake limit.</summary>
+    DocumentTooLarge,
+
+    /// <summary>The PDF is password protected or corrupt.</summary>
+    ProtectedOrCorruptDocument,
+
+    /// <summary>The same file (same SHA-256) was received before under another document id.</summary>
+    DuplicateDocument,
 }
 
 /// <summary>A problem found by <see cref="ClaimValidator"/>.</summary>

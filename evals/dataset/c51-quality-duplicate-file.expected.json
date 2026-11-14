@@ -1,0 +1,31 @@
+{
+  "id": "c51-quality-duplicate-file",
+  "file": "c51-quality-duplicate-file.txt",
+  "split": "test",
+  "family": "quality",
+  "tags": [
+    "duplicate_file",
+    "quality_gate"
+  ],
+  "context": {
+    "receivedAt": "2026-11-14T09:00:00Z",
+    "existingClaims": [],
+    "duplicateOf": "c43-non-claim-marketing",
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": null,
+      "claimant_name": null,
+      "loss_date": null,
+      "cause": null,
+      "estimated_amount_gbp": null,
+      "notification_date": null
+    },
+    "issueCodes": [
+      "DuplicateDocument"
+    ],
+    "findings": [],
+    "route": "SeniorReview"
+  }
+}

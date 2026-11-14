@@ -1,0 +1,35 @@
+{
+  "id": "c03-clean-fire-pdf",
+  "file": "c03-clean-fire-pdf.pdf",
+  "split": "dev",
+  "family": "clean_pdf",
+  "tags": [
+    "clean",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-11T10:27:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100006",
+      "claimant_name": "Wren & Co Estate Agents",
+      "loss_date": "2026-11-09",
+      "cause": "fire",
+      "estimated_amount_gbp": 6000.0,
+      "notification_date": "2026-11-11"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

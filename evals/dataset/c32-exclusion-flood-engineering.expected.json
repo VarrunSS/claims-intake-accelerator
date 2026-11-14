@@ -1,0 +1,35 @@
+{
+  "id": "c32-exclusion-flood-engineering",
+  "file": "c32-exclusion-flood-engineering.pdf",
+  "split": "test",
+  "family": "exclusion_flood",
+  "tags": [
+    "exclusion",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-23T11:49:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100004",
+      "claimant_name": "Lowther Fabrication Works Ltd",
+      "loss_date": "2026-10-20",
+      "cause": "flood",
+      "estimated_amount_gbp": 18500.0,
+      "notification_date": "2026-10-23"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "PossibleExclusion",
+        "clauseRef": "4.2"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

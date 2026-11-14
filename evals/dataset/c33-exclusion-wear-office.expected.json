@@ -1,0 +1,39 @@
+{
+  "id": "c33-exclusion-wear-office",
+  "file": "c33-exclusion-wear-office.pdf",
+  "split": "test",
+  "family": "exclusion_wear",
+  "tags": [
+    "exclusion",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-29T12:27:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100006",
+      "claimant_name": "Wren & Co Estate Agents",
+      "loss_date": "2026-10-26",
+      "cause": "water",
+      "estimated_amount_gbp": 3900.0,
+      "notification_date": "2026-10-29"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      },
+      {
+        "kind": "PossibleExclusion",
+        "clauseRef": "4.2"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

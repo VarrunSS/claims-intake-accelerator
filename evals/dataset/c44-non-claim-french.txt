@@ -1,0 +1,6 @@
+From: Claire Dubois <claire@atelier-dubois.example>
+To: claims@thamesmutual.example
+Date: Mon, 9 Nov 2026 09:12:00 +0000
+Subject: Sinistre
+
+Bonjour, nous avons eu un sinistre dans notre entrepôt la semaine dernière et nous voudrions savoir comment procéder avec votre assurance. Les dégâts causés par l'eau sont importants et nous avons besoin de votre aide pour la suite. Merci de nous répondre dès que possible.

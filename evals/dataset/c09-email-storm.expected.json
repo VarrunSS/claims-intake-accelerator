@@ -1,0 +1,34 @@
+{
+  "id": "c09-email-storm",
+  "file": "c09-email-storm.txt",
+  "split": "test",
+  "family": "email_txt",
+  "tags": [
+    "email"
+  ],
+  "context": {
+    "receivedAt": "2026-11-09T13:22:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100010",
+      "claimant_name": "Millbrook Garden Centres Ltd",
+      "loss_date": "2026-11-07",
+      "cause": "storm",
+      "estimated_amount_gbp": 9800.0,
+      "notification_date": "2026-11-09"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.4"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

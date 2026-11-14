@@ -1,0 +1,39 @@
+{
+  "id": "c37-late-notification-office",
+  "file": "c37-late-notification-office.pdf",
+  "split": "test",
+  "family": "late_notification",
+  "tags": [
+    "late_notification",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-09T11:54:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100006",
+      "claimant_name": "Wren & Co Estate Agents",
+      "loss_date": "2026-10-20",
+      "cause": "water",
+      "estimated_amount_gbp": 4700.0,
+      "notification_date": "2026-11-09"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      },
+      {
+        "kind": "NotificationBreach",
+        "clauseRef": "5.1"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "c48-quality-corrupt-pdf",
+  "file": "c48-quality-corrupt-pdf.pdf",
+  "split": "dev",
+  "family": "quality",
+  "tags": [
+    "quality_gate"
+  ],
+  "context": {
+    "receivedAt": "2026-11-14T09:00:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": null,
+      "claimant_name": null,
+      "loss_date": null,
+      "cause": null,
+      "estimated_amount_gbp": null,
+      "notification_date": null
+    },
+    "issueCodes": [
+      "ProtectedOrCorruptDocument"
+    ],
+    "findings": [],
+    "route": "SeniorReview"
+  }
+}

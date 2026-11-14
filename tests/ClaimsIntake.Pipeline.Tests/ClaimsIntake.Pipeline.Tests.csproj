@@ -25,6 +25,8 @@
   <ItemGroup>
     <!-- The sample claim documents are used as test inputs. -->
     <Content Include="..\..\samples\*.pdf;..\..\samples\*.txt;..\..\samples\*.eml" Link="samples\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- A scan with no text, a password-protected PDF and a truncated PDF, written by evals/generate_dataset.py. -->
+    <Content Include="fixtures\*.pdf" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

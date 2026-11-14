@@ -1,0 +1,35 @@
+{
+  "id": "c18-amount-words-form",
+  "file": "c18-amount-words-form.pdf",
+  "split": "dev",
+  "family": "amount_words",
+  "tags": [
+    "amount_words",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-29T16:26:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100001",
+      "claimant_name": "Brindle & Marsh Joinery Ltd",
+      "loss_date": "2026-10-25",
+      "cause": "fire",
+      "estimated_amount_gbp": 12000.0,
+      "notification_date": "2026-10-29"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

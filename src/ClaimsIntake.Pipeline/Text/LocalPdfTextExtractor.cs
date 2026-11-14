@@ -28,7 +28,10 @@ public sealed class LocalPdfTextExtractor : IDocumentTextExtractor
         if (text.IsEmpty)
         {
             throw new UnreadableDocumentException(
-                "No text could be read from the document. It may be a scan; use Document Intelligence for scanned files.");
+                "No text could be read from the document. It may be a scan; use Document Intelligence for scanned files.")
+            {
+                Kind = UnreadableKind.NoText,
+            };
         }
 
         return Task.FromResult(text);

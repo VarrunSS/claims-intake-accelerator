@@ -1,0 +1,32 @@
+{
+  "id": "c24-policy-typo-short",
+  "file": "c24-policy-typo-short.pdf",
+  "split": "dev",
+  "family": "policy_typo",
+  "tags": [
+    "pdf",
+    "policy_typo"
+  ],
+  "context": {
+    "receivedAt": "2026-11-04T16:51:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-10002",
+      "claimant_name": "Kestrel Print & Packaging Ltd",
+      "loss_date": "2026-11-02",
+      "cause": "theft",
+      "estimated_amount_gbp": 2600.0,
+      "notification_date": "2026-11-04"
+    },
+    "issueCodes": [
+      "UnknownPolicy"
+    ],
+    "findings": [],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

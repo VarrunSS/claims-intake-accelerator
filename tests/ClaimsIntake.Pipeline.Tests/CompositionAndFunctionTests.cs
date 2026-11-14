@@ -1,3 +1,4 @@
+using ClaimsIntake.Domain;
 using ClaimsIntake.Functions;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
@@ -106,7 +107,7 @@ public class ClaimDocumentReceivedTests
         var function = new ClaimDocumentReceived(Docs.Pipeline(sink: sink));
         await using var blob = File.OpenRead(Path.Combine(Docs.SamplesFolder, "02-theft-clean.pdf"));
 
-        await function.Run(blob, "02-theft-clean.pdf", CancellationToken.None);
+        await function.Process(blob, "02-theft-clean.pdf", null, CancellationToken.None);
 
         var claim = Assert.Single(sink.Claims);
         Assert.Equal("inbox/02-theft-clean.pdf", claim.DocumentId);
@@ -117,15 +118,41 @@ public class ClaimDocumentReceivedTests
     public async Task A_failing_document_throws_so_the_blob_trigger_retries_and_then_poisons_it()
     {
         var function = new ClaimDocumentReceived(Docs.Pipeline());
+        await using var blob = new MemoryStream("hello"u8.ToArray());
+
+        await Assert.ThrowsAsync<UnreadableDocumentException>(() => function.Process(blob, "claim.docx", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_corrupt_pdf_is_handed_to_a_person_instead_of_poisoning_the_blob()
+    {
+        var sink = new RecordingSink();
+        var function = new ClaimDocumentReceived(Docs.Pipeline(sink: sink));
         await using var blob = new MemoryStream("not a pdf"u8.ToArray());
 
-        await Assert.ThrowsAsync<UnreadableDocumentException>(() => function.Run(blob, "broken.pdf", CancellationToken.None));
+        await function.Process(blob, "broken.pdf", null, CancellationToken.None);
+
+        var claim = Assert.Single(sink.Claims);
+        Assert.Equal(IssueCode.ProtectedOrCorruptDocument, Assert.Single(claim.Issues).Code);
+    }
+
+    [Fact]
+    public async Task The_blobs_creation_time_is_the_received_time_passed_to_the_pipeline()
+    {
+        var sink = new RecordingSink();
+        var function = new ClaimDocumentReceived(Docs.Pipeline(sink: sink));
+        await using var blob = File.OpenRead(Path.Combine(Docs.SamplesFolder, "02-theft-clean.pdf"));
+        var created = new DateTimeOffset(2026, 11, 14, 8, 0, 0, TimeSpan.Zero);
+
+        await function.Process(blob, "02-theft-clean.pdf", created, CancellationToken.None);
+
+        Assert.Equal(created, Assert.Single(sink.Claims).ReceivedAt);
     }
 
     [Fact]
     public async Task A_blob_larger_than_the_limit_is_refused_while_it_is_being_read()
     {
-        await using var huge = new MemoryStream(new byte[ClaimIntakePipeline.MaxDocumentBytes + 1]);
+        await using var huge = new MemoryStream(new byte[ClaimIntakePipeline.HardLimitBytes + 1]);
 
         await Assert.ThrowsAsync<UnreadableDocumentException>(() => ClaimDocumentReceived.ReadLimitedAsync(huge, CancellationToken.None));
     }
@@ -133,10 +160,10 @@ public class ClaimDocumentReceivedTests
     [Fact]
     public async Task A_blob_at_the_limit_is_read_in_full()
     {
-        await using var exact = new MemoryStream(new byte[ClaimIntakePipeline.MaxDocumentBytes]);
+        await using var exact = new MemoryStream(new byte[ClaimIntakePipeline.HardLimitBytes]);
 
         var data = await ClaimDocumentReceived.ReadLimitedAsync(exact, CancellationToken.None);
 
-        Assert.Equal(ClaimIntakePipeline.MaxDocumentBytes, data.ToMemory().Length);
+        Assert.Equal(ClaimIntakePipeline.HardLimitBytes, data.ToMemory().Length);
     }
 }

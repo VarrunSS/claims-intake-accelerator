@@ -22,21 +22,6 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
     /// <summary>The longest period a building may be unoccupied before the wording's unoccupied-buildings exclusion applies.</summary>
     private const int UnoccupiedLimitDays = 30;
 
-    private sealed record Cause(string Key, string PerilHeading, string Query, Regex Pattern);
-
-    // Order matters: the first cause that matches wins, so flood is tested before the generic escape of water.
-    private static readonly Cause[] Causes =
-    [
-        new("fire", "Fire", "fire lightning explosion smoke", Rx(@"\b(fire|blaze|burnt|burned|smoke|flames?)\b")),
-        new("flood", "Flood", "flood inundation surface water rising groundwater", Rx(@"\b(flood(?:ed|ing|s)?|surface water|overflowing river|river burst)\b")),
-        new("theft", "Theft", "theft forcible violent entry", Rx(@"\b(stolen|theft|thieves|burglar\w*|break-?in|forced entry|forcible)\b")),
-        new("storm", "Storm", "storm gale rain hail snow", Rx(@"\b(storm|gale|hail|high winds?)\b")),
-        new("impact", "Impact", "impact collision road vehicle", Rx(@"\b(struck|collision|collided|crash(?:ed)?|rammed|hit by)\b")),
-        new("refrigeration", "Refrigeration failure", "refrigeration failure plant stock", Rx(@"\b(freezer|refrigerat\w*|chiller|cold room)\b")),
-        new("breakdown", "Breakdown", "breakdown mechanical electrical failure plant hydraulic", Rx(@"\b(breakdown|failed|failure|seized|malfunction\w*)\b")),
-        new("water", "Escape of water", "escape of water burst leaking pipe tank", Rx(@"\b(burst|leak(?:ed|ing|s)?|pipe|escape of water|water)\b")),
-    ];
-
     private static readonly Regex Flood = Rx(@"\b(flood(?:ed|ing|s)?|surface water|overflowing river|river burst)\b");
     private static readonly Regex WearAndTear = Rx(@"\b(wear and tear|worn|wearing|gradual(?:ly)?|deteriorat\w*|corro\w*|rust(?:ed|y)?|rotted|rotten|perished|over time)\b");
     private static readonly Regex UnoccupiedBefore = Rx(@"\b(?:unoccupied|vacant|empty|closed|shut|not (?:been )?(?:used|occupied))\b[^.]{0,60}?\b(?<n>\d{1,3})\s*(?<unit>day|week|month)s?\b");
@@ -61,7 +46,7 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
         }
 
         var description = context.Description ?? "";
-        var cause = Causes.FirstOrDefault(c => c.Pattern.IsMatch(description));
+        var cause = LossCauses.Classify(description);
 
         // 1. Cover: the insured peril that matches the cause of loss.
         if (cause is not null)

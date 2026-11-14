@@ -1,0 +1,37 @@
+{
+  "id": "c42-loss-date-in-future",
+  "file": "c42-loss-date-in-future.pdf",
+  "split": "test",
+  "family": "future_date",
+  "tags": [
+    "future_date",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-14T16:56:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100003",
+      "claimant_name": "Harcourt Dental Practice",
+      "loss_date": "2027-02-15",
+      "cause": "fire",
+      "estimated_amount_gbp": 9800.0,
+      "notification_date": "2026-11-14"
+    },
+    "issueCodes": [
+      "LossDateInFuture"
+    ],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

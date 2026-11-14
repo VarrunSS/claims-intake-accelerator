@@ -497,3 +497,7 @@ coverage/
 # Local mode inbox (ADR 0005) and UI build output
 local-inbox/
 .local-run/
+
+# Evaluation runs are local; only the committed baseline is tracked.
+/evals/results/*
+!/evals/results/baseline/

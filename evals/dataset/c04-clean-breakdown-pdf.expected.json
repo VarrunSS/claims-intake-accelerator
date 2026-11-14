@@ -1,0 +1,36 @@
+{
+  "id": "c04-clean-breakdown-pdf",
+  "file": "c04-clean-breakdown-pdf.pdf",
+  "split": "test",
+  "family": "clean_pdf",
+  "tags": [
+    "clean",
+    "name_variant",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-10-15T10:28:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100004",
+      "claimant_name": "Lowther Fabrication Works Ltd",
+      "loss_date": "2026-10-12",
+      "cause": "breakdown",
+      "estimated_amount_gbp": 21000.0,
+      "notification_date": "2026-10-15"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

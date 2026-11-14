@@ -1,0 +1,35 @@
+{
+  "id": "c31-exclusion-flood-office",
+  "file": "c31-exclusion-flood-office.pdf",
+  "split": "dev",
+  "family": "exclusion_flood",
+  "tags": [
+    "exclusion",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-12T09:33:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100009",
+      "claimant_name": "Greyfriars Bookbinders",
+      "loss_date": "2026-11-10",
+      "cause": "flood",
+      "estimated_amount_gbp": 7800.0,
+      "notification_date": "2026-11-12"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "PossibleExclusion",
+        "clauseRef": "4.1"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}
