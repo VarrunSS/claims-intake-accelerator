@@ -1,8 +1,10 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { ClaimDetailPage } from './claim-detail';
 import { ClaimsService } from './claims.service';
+import { AuthService } from '../auth/auth.service';
 import { AuditEntry, ClaimAssessment, ClaimDetail } from './models';
 
 const base: ClaimDetail = {
@@ -17,6 +19,7 @@ const base: ClaimDetail = {
   issues: [],
   sourcePages: ['Policy: TM-CP-100001 burst pipe'],
   decidedBy: null,
+  decidedByName: null,
   decidedAt: null,
   rejectionReason: null,
   legacyReference: null,
@@ -51,10 +54,20 @@ async function setup(
   claim: ClaimDetail,
   approve = vi.fn(() => of({ ...claim, status: 'Submitted' as const, legacyReference: 'LC-000001' })),
   audit = vi.fn(() => of([] as AuditEntry[])),
+  roles: string[] = ['ClaimsHandler'],
 ) {
-  localStorage.clear();
+  const auth = {
+    me: signal({ id: 'oid-1', name: 'Alex Patel', roles }),
+    isSenior: () => roles.includes('SeniorHandler'),
+    session: signal(0),
+    signIn: vi.fn(),
+  };
   TestBed.configureTestingModule({
-    providers: [provideRouter([]), { provide: ClaimsService, useValue: { get: () => of(claim), approve, reject: vi.fn(), audit } }],
+    providers: [
+      provideRouter([]),
+      { provide: AuthService, useValue: auth },
+      { provide: ClaimsService, useValue: { get: () => of(claim), approve, reject: vi.fn(), audit } },
+    ],
   });
   const fixture = TestBed.createComponent(ClaimDetailPage);
   fixture.componentRef.setInput('id', claim.id);
@@ -68,12 +81,6 @@ function button(el: HTMLElement, text: string) {
   return [...el.querySelectorAll('button')].find((b) => b.textContent?.includes(text)) as HTMLButtonElement;
 }
 
-function typeName(el: HTMLElement, name: string) {
-  const input = el.querySelector('#reviewer') as HTMLInputElement;
-  input.value = name;
-  input.dispatchEvent(new Event('input'));
-}
-
 describe('ClaimDetailPage', () => {
   it('disables Approve and says why when the claim has errors', async () => {
     const { el } = await setup({
@@ -85,15 +92,26 @@ describe('ClaimDetailPage', () => {
     expect(el.textContent).toContain('No date of loss was found.');
   });
 
-  it('calls approve with the reviewer name and shows the legacy reference', async () => {
+  it('has no name input, never touches browser storage, and says who is deciding', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem');
+    const set = vi.spyOn(Storage.prototype, 'setItem');
+    const { el } = await setup(base);
+    expect(el.querySelector('#reviewer')).toBeNull();
+    expect(el.querySelector('input[type="text"]')).toBeNull();
+    expect(el.querySelector('.deciding-as')?.textContent).toContain('Deciding as Alex Patel');
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    get.mockRestore();
+    set.mockRestore();
+  });
+
+  it('calls approve with the claim id only and shows the legacy reference', async () => {
     const { fixture, el, approve } = await setup(base);
-    typeName(el, 'a.patel');
-    fixture.detectChanges();
     const approveButton = button(el, 'Approve');
     expect(approveButton.disabled).toBe(false);
     approveButton.click();
     fixture.detectChanges();
-    expect(approve).toHaveBeenCalledWith(base.id, 'a.patel');
+    expect(approve).toHaveBeenCalledWith(base.id);
     expect(el.textContent).toContain('LC-000001');
   });
 
@@ -105,8 +123,68 @@ describe('ClaimDetailPage', () => {
   });
 
   it('offers a retry when the claim is approved but not yet written', async () => {
-    const { el } = await setup({ ...base, status: 'Approved', decidedBy: 'a.patel' });
+    const { el } = await setup({ ...base, status: 'Approved', decidedBy: 'oid-1', decidedByName: 'Alex Patel' });
     expect(button(el, 'Retry write')).toBeTruthy();
+    expect(el.textContent).toContain('Approved by Alex Patel');
+    expect(el.textContent).not.toContain('oid-1');
+  });
+
+  it('shows the decider by name, never by object id', async () => {
+    const { el } = await setup({ ...base, status: 'Rejected', decidedBy: 'oid-9', decidedByName: 'Sam Jones', rejectionReason: 'Duplicate' });
+    expect(el.querySelector('.decision')?.textContent).toContain('Rejected by Sam Jones');
+    expect(el.textContent).not.toContain('oid-9');
+  });
+
+  it('says unknown when the decider has no display name', async () => {
+    const { el } = await setup({ ...base, status: 'Rejected', decidedBy: 'oid-9', decidedByName: null, rejectionReason: 'x' });
+    expect(el.querySelector('.decision')?.textContent).toContain('Rejected by unknown');
+    expect(el.textContent).not.toContain('oid-9');
+  });
+
+  describe('senior review routing', () => {
+    const routed: ClaimDetail = { ...base, assessment };
+    const message = 'This claim is routed to senior review. Only a senior handler can approve it. You can still reject it.';
+
+    it('disables Approve for a handler, explains why, and still allows Reject', async () => {
+      const { el } = await setup(routed);
+      expect(button(el, 'Approve').disabled).toBe(true);
+      expect(el.querySelector('#approve-hint')?.textContent).toContain(message);
+      expect(button(el, 'Reject').disabled).toBe(false);
+    });
+
+    it('enables Approve for a senior handler', async () => {
+      const { el } = await setup(routed, undefined, undefined, ['SeniorHandler']);
+      expect(button(el, 'Approve').disabled).toBe(false);
+      expect(el.querySelector('#approve-hint')?.textContent?.trim()).toBe('');
+    });
+  });
+
+  it('shows the not-signed-in message with a sign-in button on a 401', async () => {
+    const { fixture, el } = await setup(base, vi.fn(() => throwError(() => ({ status: 401, title: 'Unauthorized', detail: '', errors: [] }))));
+    button(el, 'Approve').click();
+    fixture.detectChanges();
+    const alert = el.querySelector('.decision .alert') as HTMLElement;
+    expect(alert.textContent).toContain('You are not signed in or your session has expired.');
+    expect(alert.querySelector('button')?.textContent).toContain('Sign in');
+  });
+
+  it('shows the problem title and detail on a 403', async () => {
+    const { fixture, el } = await setup(
+      base,
+      vi.fn(() => throwError(() => ({ status: 403, title: 'Senior review required', detail: 'Only a senior handler can approve this claim.', errors: [] }))),
+    );
+    button(el, 'Approve').click();
+    fixture.detectChanges();
+    expect(el.querySelector('.decision .alert')?.textContent).toContain('Senior review required');
+    expect(el.querySelector('.decision .alert')?.textContent).toContain('Only a senior handler');
+  });
+
+  it('labels human decision entries in the audit trail', async () => {
+    const failed: AuditEntry = { tool: 'decision.submit_failed', arguments: { actor_oid: 'oid-1', role: 'ClaimsHandler', route: 'StraightToHandler' }, resultSummary: 'legacy down', durationMs: 0, timestamp: '2026-11-14T09:05:00Z', succeeded: false };
+    const { el } = await setup({ ...base, assessment }, undefined, vi.fn(() => of([{ ...failed, tool: 'decision.approved', succeeded: true }, failed])));
+    const rows = [...el.querySelectorAll('table.audit-table tbody tr')];
+    expect(rows[0].textContent).toContain('Decision: approved');
+    expect(rows[1].textContent).toContain('Decision: submit failed');
   });
 
   describe('coverage assessment', () => {

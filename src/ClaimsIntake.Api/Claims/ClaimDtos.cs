@@ -41,6 +41,7 @@ public sealed record ClaimDetail(
     IReadOnlyList<IssueDto> Issues,
     IReadOnlyList<string> SourcePages,
     string? DecidedBy,
+    string? DecidedByName,
     DateTimeOffset? DecidedAt,
     string? RejectionReason,
     string? LegacyReference,
@@ -55,6 +56,7 @@ public sealed record ClaimDetail(
         [.. claim.Issues.Select(i => new IssueDto(i.Code, i.Severity, i.Field, i.Message))],
         claim.SourcePages,
         claim.DecidedBy,
+        claim.DecidedByName,
         claim.DecidedAt,
         claim.RejectionReason,
         claim.LegacyReference,
@@ -79,6 +81,11 @@ public sealed record ClaimHistoryItem(Guid Id, string? PolicyNumber, DateOnly? L
     }
 }
 
-public sealed record ApproveRequest(string? Reviewer);
+/// <summary>Approve takes no body. The one field is kept only to refuse old clients that still send a reviewer (SEC-02).</summary>
+public sealed record ApproveRequest(string? Reviewer = null);
 
-public sealed record RejectRequest(string? Reviewer, string? Reason);
+/// <summary>Reject takes a reason. <c>Reviewer</c> is kept only to refuse old clients that still send one (SEC-02).</summary>
+public sealed record RejectRequest(string? Reason, string? Reviewer = null);
+
+/// <summary>The signed-in caller, from the token.</summary>
+public sealed record MeDto(string Id, string Name, IReadOnlyList<string> Roles, bool IsSenior);

@@ -290,7 +290,7 @@ public class CompareEndToEndTests : IDisposable
 
         // Token accounting and cost maths: the cost is exactly tokens times the fake price (2.00 in, 8.00 out per 1M).
         var usage = oracle.GetProperty("usage");
-        var expected = ((usage.GetProperty("inputTokens").GetInt64() * 2.00m) + (usage.GetProperty("outputTokens").GetInt64() * 8.00m)) / 1_000_000m / 36m;
+        var expected = ((usage.GetProperty("inputTokens").GetInt64() * 2.00m) + (usage.GetProperty("outputTokens").GetInt64() * 8.00m)) / 1_000_000m / 40m; // 40 test-split cases
         Assert.True(usage.GetProperty("inputTokens").GetInt64() > 0);
         Assert.Equal((double)expected, usage.GetProperty("costPerClaimGbp").GetDouble(), 9);
         Assert.Equal(usage.GetProperty("costPerClaimGbp").GetDouble() * 1000, usage.GetProperty("costPer1000ClaimsGbp").GetDouble(), 6);

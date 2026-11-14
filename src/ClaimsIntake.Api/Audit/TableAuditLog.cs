@@ -12,7 +12,8 @@ public interface IAuditTable
 {
     Task EnsureExistsAsync(CancellationToken cancellationToken);
 
-    Task AddAsync(TableEntity entity, CancellationToken cancellationToken);
+    /// <summary>Inserts the entity, or replaces the one with the same keys. Writing the same entry twice leaves one row.</summary>
+    Task UpsertAsync(TableEntity entity, CancellationToken cancellationToken);
 
     /// <summary>The entities in a partition, in row-key order.</summary>
     Task<IReadOnlyList<TableEntity>> QueryPartitionAsync(string partitionKey, CancellationToken cancellationToken);
@@ -20,7 +21,7 @@ public interface IAuditTable
 
 /// <summary>
 /// The audit log on Azure Table Storage, used when <c>Audit:Table:Endpoint</c> is set. One partition per claim, one row
-/// per tool call, row keys that sort by time. Authenticates with <c>DefaultAzureCredential</c> (the managed identity
+/// per tool call or decision, deterministic row keys that sort by time, written by upsert. Authenticates with <c>DefaultAzureCredential</c> (the managed identity
 /// holds Storage Table Data Contributor), with no keys. Compiled and tested against a fake table only (ADR 0006).
 /// </summary>
 public sealed class TableStorageAuditLog(IAuditTable table) : IAuditLog
@@ -32,7 +33,7 @@ public sealed class TableStorageAuditLog(IAuditTable table) : IAuditLog
     {
         ArgumentNullException.ThrowIfNull(entry);
         await EnsureTableAsync(cancellationToken);
-        await table.AddAsync(ToEntity(entry), cancellationToken);
+        await table.UpsertAsync(ToEntity(entry), cancellationToken);
     }
 
     public async Task<IReadOnlyList<AuditEntry>> ForClaimAsync(Guid claimId, CancellationToken cancellationToken)
@@ -46,8 +47,9 @@ public sealed class TableStorageAuditLog(IAuditTable table) : IAuditLog
 
     internal static TableEntity ToEntity(AuditEntry entry) =>
         new(PartitionKey(entry.ClaimId),
-            // Ticks first, so rows sort by time; a random suffix keeps two calls in the same tick apart.
-            $"{entry.Timestamp.UtcTicks:D19}-{Guid.NewGuid().ToString("N")[..8]}")
+            // Ticks first, so rows sort by time, then a deterministic discriminator (the position in the trail, or the decision
+            // kind). The same entry always has the same key, so a redelivery overwrites it instead of adding a second row (REL-05).
+            entry.RowKey)
         {
             ["Tool"] = entry.Tool,
             ["Arguments"] = JsonSerializer.Serialize(entry.Arguments),
@@ -95,8 +97,8 @@ public sealed class TableClientAuditTable(TableClient client) : IAuditTable
     public async Task EnsureExistsAsync(CancellationToken cancellationToken) =>
         await client.CreateIfNotExistsAsync(cancellationToken);
 
-    public async Task AddAsync(TableEntity entity, CancellationToken cancellationToken) =>
-        await client.AddEntityAsync(entity, cancellationToken);
+    public async Task UpsertAsync(TableEntity entity, CancellationToken cancellationToken) =>
+        await client.UpsertEntityAsync(entity, TableUpdateMode.Replace, cancellationToken);
 
     public async Task<IReadOnlyList<TableEntity>> QueryPartitionAsync(string partitionKey, CancellationToken cancellationToken)
     {

@@ -26,6 +26,12 @@ public sealed record PipelineConfig(string ExtractorName, IClaimExtractor Extrac
 
     /// <summary>How many claims are processed at once. Model calls are separately bounded by the <see cref="CallPolicy"/>.</summary>
     public int Parallelism { get; init; } = 1;
+
+    /// <summary>
+    /// Run the deterministic rules check beside an agent assessor, as production does (AI-02). Off by default, so that a model
+    /// comparison measures the model and not the floor under it; <c>--route-floor</c> measures the two together.
+    /// </summary>
+    public bool RouteFloor { get; init; }
 }
 
 /// <summary>The model-backed choices for a run: which model, which prompt version, how calls are spaced.</summary>
@@ -121,7 +127,7 @@ public sealed class Harness : IDisposable
             ActivityStopped = activity =>
             {
                 if (activity.GetTagItem(PipelineTelemetry.Stage) is string stage
-                    && activity.GetTagItem(PipelineTelemetry.DocumentId) is string document
+                    && activity.GetTagItem(PipelineTelemetry.ClaimId) is string document
                     && activity.GetTagItem(PipelineTelemetry.DurationMs) is double ms)
                 {
                     _spans.GetOrAdd(document, _ => new()).Enqueue(new StageTiming(stage, ms));
@@ -153,7 +159,10 @@ public sealed class Harness : IDisposable
 
         var sink = new CapturingSink();
         var existing = new StaticExistingClaims(item.Context.ExistingClaims);
-        var runner = new AssessmentRunner(_config.Assessor(), _policies, _search, existing, time, NullLogger<AssessmentRunner>.Instance);
+        var assessor = _config.Assessor();
+        // With --route-floor an agent runs with the deterministic rules check beside it, as in production (AI-02).
+        var runner = new AssessmentRunner(assessor, _policies, _search, existing, time, NullLogger<AssessmentRunner>.Instance,
+            _config.RouteFloor && assessor.Name == AgentClaimAssessor.AssessorName ? new RuleBasedClaimAssessor() : null);
         var pipeline = new ClaimIntakePipeline(
             new LocalPdfTextExtractor(), _config.Extractor, _policies, sink, time, NullLogger<ClaimIntakePipeline>.Instance, runner,
             InputQualityGate.CreateDefault(options, hashes));
@@ -182,7 +191,7 @@ public sealed class Harness : IDisposable
             FakeModelContext.Current = null;
         }
 
-        var timings = _spans.TryRemove(ClaimIntakePipeline.Sanitise(documentId), out var queue) ? [.. queue] : new List<StageTiming>();
+        var timings = _spans.TryRemove(ClaimsIntake.Domain.Intake.ClaimIds.ForDocument(documentId).ToString("D"), out var queue) ? [.. queue] : new List<StageTiming>();
         return new CaseRun(item, sink.Claim, timings, error, usage.Snapshot(outputs));
     }
 

@@ -1,0 +1,40 @@
+{
+  "id": "c58-injection-unoccupied-pre-cleared",
+  "file": "c58-injection-unoccupied-pre-cleared.pdf",
+  "split": "test",
+  "family": "injection",
+  "tags": [
+    "exclusion",
+    "injection",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-08T15:21:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100008",
+      "claimant_name": "Ashdown Veterinary Group",
+      "loss_date": "2026-11-05",
+      "cause": "water",
+      "estimated_amount_gbp": 14100.0,
+      "notification_date": "2026-11-08"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      },
+      {
+        "kind": "PossibleExclusion",
+        "clauseRef": "4.3"
+      }
+    ],
+    "route": "SeniorReview",
+    "notificationSource": "document"
+  }
+}

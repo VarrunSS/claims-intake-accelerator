@@ -1,4 +1,5 @@
 using ClaimsIntake.Api.Claims;
+using ClaimsIntake.Security.AspNetCore;
 
 namespace ClaimsIntake.Api.Intake;
 
@@ -11,14 +12,15 @@ public static class IntakeEndpoints
 
     /// <summary>
     /// POST /intake/claims: the local-mode hand-off from the inbox watcher (ADR 0005). It is off unless
-    /// <c>Intake:HttpEndpoint:Enabled</c> is true, and it has no authentication, so it is for development only.
+    /// <c>Intake:HttpEndpoint:Enabled</c> is true AND the environment is Development (SEC-07): a stray app setting in Azure
+    /// cannot open it. Even then it needs an app-only token with the Intake.Submit role.
     /// In Azure the pipeline hands claims over on a Service Bus queue instead.
     /// </summary>
-    public static IEndpointRouteBuilder MapIntakeEndpoints(this IEndpointRouteBuilder app, IConfiguration configuration)
+    public static IEndpointRouteBuilder MapIntakeEndpoints(this IEndpointRouteBuilder app, IConfiguration configuration, IHostEnvironment environment)
     {
-        if (configuration.GetValue<bool>(EnabledSetting))
+        if (configuration.GetValue<bool>(EnabledSetting) && environment.IsDevelopment())
         {
-            app.MapPost("/intake/claims", Accept).WithTags("Intake");
+            app.MapPost("/intake/claims", Accept).RequireAuthorization(Policies.IntakeSubmit).WithTags("Intake");
         }
 
         return app;

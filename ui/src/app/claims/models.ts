@@ -80,7 +80,9 @@ export interface ClaimDetail {
   fields: ClaimField[];
   issues: ClaimIssue[];
   sourcePages: string[];
+  /** The decider's stable object id. Not for display; show decidedByName. */
   decidedBy: string | null;
+  decidedByName: string | null;
   decidedAt: string | null;
   rejectionReason: string | null;
   legacyReference: string | null;

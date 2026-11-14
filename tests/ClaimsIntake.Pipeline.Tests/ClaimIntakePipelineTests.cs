@@ -16,12 +16,12 @@ public class ClaimIntakePipelineTests
     private sealed class SpanCollector : IDisposable
     {
         private readonly ActivityListener _listener;
-        private readonly string _documentId;
+        private readonly string _claimId;
         private readonly List<Activity> _spans = [];
 
         public SpanCollector(string documentId)
         {
-            _documentId = documentId;
+            _claimId = ClaimIds.ForDocument(documentId).ToString("D");
             _listener = new ActivityListener
             {
                 ShouldListenTo = source => source.Name == PipelineTelemetry.SourceName,
@@ -43,7 +43,7 @@ public class ClaimIntakePipelineTests
             {
                 lock (_spans)
                 {
-                    return [.. _spans.Where(a => a.GetTagItem(PipelineTelemetry.DocumentId) as string == _documentId)];
+                    return [.. _spans.Where(a => a.GetTagItem(PipelineTelemetry.ClaimId) as string == _claimId)];
                 }
             }
         }
@@ -90,7 +90,7 @@ public class ClaimIntakePipelineTests
     }
 
     [Fact]
-    public async Task Each_stage_gets_a_span_with_stage_duration_and_document_id()
+    public async Task Each_stage_gets_a_span_with_stage_duration_and_claim_id()
     {
         var document = UniqueSample(Clean, out var id);
         using var spans = new SpanCollector(id);
@@ -104,7 +104,7 @@ public class ClaimIntakePipelineTests
 
         foreach (var span in byStage.Values)
         {
-            Assert.Equal(id, span.GetTagItem(PipelineTelemetry.DocumentId));
+            Assert.Equal(ClaimIds.ForDocument(id).ToString("D"), span.GetTagItem(PipelineTelemetry.ClaimId));
             Assert.IsType<double>(span.GetTagItem(PipelineTelemetry.DurationMs));
             Assert.True((double)span.GetTagItem(PipelineTelemetry.DurationMs)! >= 0);
             Assert.NotEqual(ActivityStatusCode.Error, span.Status);
@@ -135,6 +135,29 @@ public class ClaimIntakePipelineTests
         {
             Assert.DoesNotContain(secret, everything);
         }
+    }
+
+    // PII-01: a blob or file name can be a person's name ("Smith J - burst pipe 12 Acacia Ave.pdf"). It must reach no log
+    // line and no span tag; the claim id, a hash of it, is the key everywhere.
+    [Fact]
+    public async Task A_document_name_that_holds_a_person_never_reaches_a_log_line_or_a_span()
+    {
+        var logger = new ListLogger<ClaimIntakePipeline>();
+        var document = Docs.Sample(Clean) with { DocumentId = $"inbox/Smith J - burst pipe 12 Acacia Ave {Guid.NewGuid():N}.pdf" };
+        using var spans = new SpanCollector(document.DocumentId);
+
+        var result = await Docs.Pipeline(logger: logger).ProcessAsync(document, CancellationToken.None);
+
+        var everything = string.Join('\n', logger.Lines.Concat(
+            spans.Spans.SelectMany(s => s.TagObjects.Select(t => $"{t.Key}={t.Value}").Append(s.DisplayName))));
+        Assert.NotEmpty(logger.Lines);
+        Assert.NotEmpty(spans.Spans);
+        foreach (var secret in new[] { "Smith", "Acacia", "burst pipe", ".pdf" })
+        {
+            Assert.DoesNotContain(secret, everything);
+        }
+
+        Assert.Contains(result.Claim.ClaimId.ToString("D"), everything);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using ClaimsIntake.Pipeline.Assessment;
 using ClaimsIntake.Pipeline.Fields;
 using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
+using ClaimsIntake.Pipeline.Prompts;
 using ClaimsIntake.Pipeline.Quality;
 using ClaimsIntake.Pipeline.Text;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,8 @@ public sealed partial class ClaimIntakePipeline(
     TimeProvider time,
     ILogger<ClaimIntakePipeline> logger,
     AssessmentRunner? assessment = null,
-    InputQualityGate? quality = null)
+    InputQualityGate? quality = null,
+    IPromptAttackDetector? detector = null)
 {
     private readonly InputQualityGate _quality = quality ?? InputQualityGate.CreateDefault();
 
@@ -50,7 +52,8 @@ public sealed partial class ClaimIntakePipeline(
     public async Task<PipelineResult> ProcessAsync(IntakeDocument document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        var id = Sanitise(document.DocumentId);
+        // Spans and logs are keyed by the claim id. The document id is a blob or file name and can hold a person's name (PII-01).
+        var id = ClaimIds.ForDocument(document.DocumentId).ToString("D");
 
         using var process = new StageScope(PipelineTelemetry.StageProcess, id);
         try
@@ -111,14 +114,21 @@ public sealed partial class ClaimIntakePipeline(
             if (assessment is not null)
             {
                 // Advice for the handler: it never changes the claim, and a failure here does not lose the claim.
-                var context = new AssessmentContext(ClaimIds.ForDocument(document.DocumentId), byName, notifiedOn);
+                var context = new AssessmentContext(ClaimIds.ForDocument(document.DocumentId), byName, notifiedOn, policy);
                 var outcome = await RunAsync(PipelineTelemetry.StageAssess, id,
                     () => assessment.RunAsync(context, cancellationToken), _ => confidence);
                 assessed = outcome.Assessment;
                 audit = outcome.AuditTrail;
             }
 
-            var proposed = new ProposedClaim(document.DocumentId, receivedAt, fields, [.. issues], text.Pages, assessed, audit, notifiedOn, notifiedSource);
+            if (detector is not null && await FlagIfAttackAsync(text, cancellationToken) is { } flagged)
+            {
+                assessed = RaiseForAttack(assessed, flagged);
+            }
+
+            // Shared limits (REL-04): a long document or trail is cut down and a person is told, so the API never has to refuse it.
+            var proposed = new ProposedClaim(document.DocumentId, receivedAt, fields, [.. issues], text.Pages, assessed, audit, notifiedOn, notifiedSource)
+                .WithinLimits();
 
             await RunAsync(PipelineTelemetry.StageHandoff, id, async () =>
             {
@@ -128,7 +138,7 @@ public sealed partial class ClaimIntakePipeline(
 
             var result = new PipelineResult(proposed, confidence);
             process.SetConfidence(confidence);
-            LogHandedOff(logger, id, proposed.ClaimId, result.ErrorCount, result.WarningCount, confidence);
+            LogHandedOff(logger, proposed.ClaimId, result.ErrorCount, result.WarningCount, confidence);
             return result;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -139,9 +149,9 @@ public sealed partial class ClaimIntakePipeline(
         }
     }
 
-    private static async Task<T> RunAsync<T>(string stage, string documentId, Func<Task<T>> work, Func<T, double?> confidence)
+    private static async Task<T> RunAsync<T>(string stage, string claimId, Func<Task<T>> work, Func<T, double?> confidence)
     {
-        using var scope = new StageScope(stage, documentId);
+        using var scope = new StageScope(stage, claimId);
         try
         {
             var result = await work();
@@ -171,7 +181,7 @@ public sealed partial class ClaimIntakePipeline(
         var assessment = new ClaimAssessment(InputQualityAssessor, [], ReviewRoute.SeniorReview,
             $"Needs a person before any assessment: {finding.Message}", [$"Stopped by the {finding.Check} input check; no fields were extracted."]);
         var issue = new ValidationIssue(finding.Code, IssueSeverity.Error, null, finding.Message);
-        var proposed = new ProposedClaim(document.DocumentId, receivedAt, fields, [issue], pages, assessment);
+        var proposed = new ProposedClaim(document.DocumentId, receivedAt, fields, [issue], pages, assessment).WithinLimits();
 
         await RunAsync(PipelineTelemetry.StageHandoff, id, async () =>
         {
@@ -180,8 +190,24 @@ public sealed partial class ClaimIntakePipeline(
         }, _ => 0.0);
 
         process.SetConfidence(0.0);
-        LogRejected(logger, id, proposed.ClaimId, finding.Code.ToString(), finding.Check);
+        LogRejected(logger, proposed.ClaimId, finding.Code.ToString(), finding.Check);
         return new PipelineResult(proposed, 0.0);
+    }
+
+    /// <summary>Asks the prompt-attack detector about the document text. Null when it is clean.</summary>
+    private async Task<PromptAttackResult?> FlagIfAttackAsync(DocumentText text, CancellationToken cancellationToken)
+    {
+        var result = await detector!.DetectAsync(string.Join("\n", text.Pages), cancellationToken);
+        return result.Flagged ? result : null;
+    }
+
+    /// <summary>A flagged document goes to senior review, with a note that says why (never a quote from the document).</summary>
+    private static ClaimAssessment RaiseForAttack(ClaimAssessment? assessed, PromptAttackResult flagged)
+    {
+        var note = $"The document was flagged as a possible attack on the AI assistant ({flagged.Reason ?? "prompt injection"}). Read it with care.";
+        return assessed is null
+            ? new ClaimAssessment("prompt-shield", [], ReviewRoute.SeniorReview, "Needs senior review: the document was flagged as a possible prompt attack.", [note])
+            : assessed with { Route = ReviewRoute.SeniorReview, RouteReason = "Needs senior review: the document was flagged as a possible prompt attack.", Notes = [.. assessed.Notes, note] };
     }
 
     /// <summary>The UK calendar date of an instant, since claim dates are UK dates. Falls back to UTC if the zone is unavailable.</summary>
@@ -210,13 +236,13 @@ public sealed partial class ClaimIntakePipeline(
     }
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "Document {DocumentId} became claim {ClaimId}: {ErrorCount} errors, {WarningCount} warnings, lowest confidence {Confidence:F2}.")]
-    private static partial void LogHandedOff(ILogger logger, string documentId, Guid claimId, int errorCount, int warningCount, double confidence);
+        Message = "Claim {ClaimId} handed off: {ErrorCount} errors, {WarningCount} warnings, lowest confidence {Confidence:F2}.")]
+    private static partial void LogHandedOff(ILogger logger, Guid claimId, int errorCount, int warningCount, double confidence);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "Document {DocumentId} became claim {ClaimId} for a person to read: input check {Check} found {Code}.")]
-    private static partial void LogRejected(ILogger logger, string documentId, Guid claimId, string code, string check);
+        Message = "Claim {ClaimId} handed to a person to read: input check {Check} found {Code}.")]
+    private static partial void LogRejected(ILogger logger, Guid claimId, string code, string check);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Document {DocumentId} failed intake: {ErrorType}.")]
-    private static partial void LogFailed(ILogger logger, string documentId, string errorType);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Claim {ClaimId} failed intake: {ErrorType}.")]
+    private static partial void LogFailed(ILogger logger, string claimId, string errorType);
 }

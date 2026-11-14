@@ -11,6 +11,7 @@ public sealed class ModelRunMetrics
     private int _malformed;
     private int _schemaViolations;
     private int _guardRemovals;
+    private int _floorRaised;
 
     public static ModelRunMetrics? Current
     {
@@ -27,11 +28,18 @@ public sealed class ModelRunMetrics
     /// <summary>Citations and findings the citation guard removed.</summary>
     public int GuardRemovals => Volatile.Read(ref _guardRemovals);
 
+    /// <summary>Claims the deterministic route floor sent to senior review when the agent had not.</summary>
+    public int FloorRaises => Volatile.Read(ref _floorRaised);
+
+    public static void FloorRaised() => Current?.AddFloorRaised();
+
     public static void Malformed() => Current?.AddMalformed();
 
     public static void SchemaViolation() => Current?.AddSchemaViolation();
 
     public static void GuardRemoved(int count) => Current?.AddGuardRemovals(count);
+
+    private void AddFloorRaised() => Interlocked.Increment(ref _floorRaised);
 
     private void AddMalformed() => Interlocked.Increment(ref _malformed);
 

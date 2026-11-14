@@ -15,7 +15,8 @@ public static class PipelineTelemetry
     // Attribute names.
     public const string Stage = "stage";
     public const string DurationMs = "duration_ms";
-    public const string DocumentId = "documentId";
+    /// <summary>The claim id (a hash of the document id), never the document or blob name: that can be a person's name (PII-01).</summary>
+    public const string ClaimId = "claimId";
     public const string Confidence = "confidence";
 
     // Stage names.
@@ -36,11 +37,11 @@ internal sealed class StageScope : IDisposable
     private readonly Activity? _activity;
     private readonly long _start = Stopwatch.GetTimestamp();
 
-    public StageScope(string stage, string documentId)
+    public StageScope(string stage, string claimId)
     {
         _activity = PipelineTelemetry.Source.StartActivity($"intake.{stage}");
         _activity?.SetTag(PipelineTelemetry.Stage, stage);
-        _activity?.SetTag(PipelineTelemetry.DocumentId, documentId);
+        _activity?.SetTag(PipelineTelemetry.ClaimId, claimId);
     }
 
     public void SetConfidence(double confidence) => _activity?.SetTag(PipelineTelemetry.Confidence, Math.Round(confidence, 2));

@@ -25,7 +25,7 @@ public class AgentClaimAssessorTests
         ScriptedChatClient client, AssessmentContext? context = null, IExistingClaims? existing = null)
     {
         context ??= Assessing.Context(policy: "TM-CP-100009", lossDate: "2026-11-10", description: "Surface water flooded the ground-floor workshop.");
-        var tools = Assessing.Tools(claimId: context.ClaimId, existing: existing);
+        var tools = Assessing.Tools(existing: existing, context: context);
         var assessment = await new AgentClaimAssessor(client).AssessAsync(context, tools, CancellationToken.None);
         return (assessment, tools, client);
     }
@@ -138,12 +138,12 @@ public class AgentClaimAssessorTests
     public async Task A_citation_matched_by_the_search_is_checked_in_this_run_not_a_previous_one()
     {
         // A different run (a different ClaimTools) returned 4.1. This run's model searched nothing.
-        var earlier = Assessing.Tools();
-        await earlier.SearchPolicyWordingAsync("flood", "TM-PW-OF-2026");
+        var earlier = Assessing.Tools(binding: Assessing.Bound("TM-CP-100009"));
+        await earlier.SearchPolicyWordingAsync("flood");
         var answer = new AgentAnswer([new AgentFinding("possible_exclusion", "Excluded.", [new AgentCitation("TM-PW-OF-2026", "4.1")], null)], "senior_review", "x");
 
-        var thisRun = Assessing.Tools();
-        var assessment = CitationGuard.Validate(answer, thisRun.ReturnedClauses, thisRun.ReturnedMatches, "agent");
+        var thisRun = Assessing.Tools(binding: Assessing.Bound("TM-CP-100009"));
+        var assessment = CitationGuard.Validate(answer, thisRun.ReturnedClauses, thisRun.ReturnedMatches, "agent", "TM-PW-OF-2026");
 
         Assert.Empty(assessment.Findings);
         Assert.Single(earlier.ReturnedClauses.Keys, k => k == "TM-PW-OF-2026/4.1");
@@ -237,10 +237,11 @@ public class AgentClaimAssessorTests
     [Fact]
     public async Task A_model_that_never_stops_calling_tools_is_cut_off_at_the_iteration_limit()
     {
-        var client = new ScriptedChatClient(Lookup("TM-CP-100009")); // The last step repeats for ever.
-        var tools = Assessing.Tools();
+        var client = new ScriptedChatClient(Lookup("TM-CP-100001")); // The last step repeats for ever.
+        var context = Assessing.Context();
+        var tools = Assessing.Tools(context: context);
 
-        var assessment = await new AgentClaimAssessor(client).AssessAsync(Assessing.Context(), tools, CancellationToken.None);
+        var assessment = await new AgentClaimAssessor(client).AssessAsync(context, tools, CancellationToken.None);
 
         Assert.Equal(ReviewRoute.SeniorReview, assessment.Route); // No answer ever came, so there is nothing to trust.
         Assert.Empty(assessment.Findings);

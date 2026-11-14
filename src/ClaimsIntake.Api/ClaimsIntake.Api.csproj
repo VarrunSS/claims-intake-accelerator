@@ -15,6 +15,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClaimsIntake.Domain\ClaimsIntake.Domain.csproj" />
+    <ProjectReference Include="..\ClaimsIntake.Security\ClaimsIntake.Security.csproj" />
+    <ProjectReference Include="..\ClaimsIntake.Security.AspNetCore\ClaimsIntake.Security.AspNetCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaimsIntake.Api.Tests" />
   </ItemGroup>
 
 </Project>

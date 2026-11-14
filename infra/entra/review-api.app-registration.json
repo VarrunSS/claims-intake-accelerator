@@ -1,0 +1,71 @@
+{
+  "_comment": "App registration for the review API (ADR 0009). Single tenant. Not applied by any script in this repository: see infra/entra/README.md. The role ids are fixed so that re-applying the file does not create duplicates.",
+  "displayName": "claims-intake-review-api",
+  "signInAudience": "AzureADMyOrg",
+  "identifierUris": [
+    "api://claims-intake-review-api"
+  ],
+  "api": {
+    "requestedAccessTokenVersion": 2,
+    "oauth2PermissionScopes": [
+      {
+        "id": "c1190f44-d31f-5cdc-8e7d-665faf883f0d",
+        "type": "User",
+        "value": "access_as_user",
+        "adminConsentDisplayName": "Use the claims review API",
+        "adminConsentDescription": "Lets the review UI call the claims review API as the signed-in handler.",
+        "userConsentDisplayName": "Use the claims review API",
+        "userConsentDescription": "Lets the review UI call the claims review API on your behalf.",
+        "isEnabled": true
+      }
+    ]
+  },
+  "optionalClaims": {
+    "accessToken": [
+      {
+        "name": "idtyp",
+        "essential": false
+      }
+    ]
+  },
+  "spa": {
+    "redirectUris": [
+      "http://localhost:4200"
+    ]
+  },
+  "appRoles": [
+    {
+      "id": "b2a98be5-8488-5387-80ba-2ab925a9afdd",
+      "allowedMemberTypes": [
+        "User"
+      ],
+      "displayName": "Claims handler",
+      "description": "Reads the review queue, approves claims routed to a handler, and rejects any claim.",
+      "isEnabled": true,
+      "value": "ClaimsHandler",
+      "origin": "Application"
+    },
+    {
+      "id": "0e71a248-8257-5352-99d4-c52c6226f7c4",
+      "allowedMemberTypes": [
+        "User"
+      ],
+      "displayName": "Senior handler",
+      "description": "Everything a claims handler may do, and approves claims routed to senior review.",
+      "isEnabled": true,
+      "value": "SeniorHandler",
+      "origin": "Application"
+    },
+    {
+      "id": "470eff69-9a74-596e-9714-eb23d4d4a90f",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "displayName": "Read claim history",
+      "description": "App-only. The intake pipeline reads the review history for the duplicate check.",
+      "isEnabled": true,
+      "value": "Intake.ReadHistory",
+      "origin": "Application"
+    }
+  ]
+}

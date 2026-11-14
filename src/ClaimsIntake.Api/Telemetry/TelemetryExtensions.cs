@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using ClaimsIntake.Domain.Telemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -40,6 +41,18 @@ public static class TelemetryExtensions
     /// "console" (default), "otlp" (endpoint from OTEL_EXPORTER_OTLP_ENDPOINT) or "none".
     /// Azure Monitor export is added in Milestone 6.
     /// </summary>
+    /// <summary>Replaces the URL attributes of an outgoing HTTP span with the route template (PII-02).</summary>
+    public static void ScrubHttpClientSpan(OpenTelemetry.Instrumentation.Http.HttpClientTraceInstrumentationOptions options)
+    {
+        options.EnrichWithHttpRequestMessage = (activity, request) =>
+            UrlScrubber.Scrub(activity, request.RequestUri?.Scheme, request.RequestUri?.Host, request.RequestUri?.Port, request.RequestUri?.AbsolutePath);
+        options.EnrichWithHttpResponseMessage = (activity, response) =>
+        {
+            var uri = response.RequestMessage?.RequestUri;
+            UrlScrubber.Scrub(activity, uri?.Scheme, uri?.Host, uri?.Port, uri?.AbsolutePath);
+        };
+    }
+
     public static WebApplicationBuilder AddClaimsIntakeTelemetry(this WebApplicationBuilder builder)
     {
         var exporter = builder.Configuration["Telemetry:Exporter"]?.Trim().ToLowerInvariant() ?? "console";
@@ -53,7 +66,13 @@ public static class TelemetryExtensions
             .ConfigureResource(resource => resource.AddService("claims-intake-api"))
             .WithTracing(tracing =>
             {
-                tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddSource(ApiTelemetry.SourceName);
+                tracing.AddAspNetCoreInstrumentation(options =>
+                    // The route template, not the raw path: a claim id or a policy number must not reach a span (PII-02).
+                    options.EnrichWithHttpResponse = (activity, response) =>
+                        UrlScrubber.Scrub(activity, response.HttpContext.Request.Scheme, response.HttpContext.Request.Host.Host,
+                            response.HttpContext.Request.Host.Port, response.HttpContext.Request.Path.Value))
+                    .AddHttpClientInstrumentation(ScrubHttpClientSpan)
+                    .AddSource(ApiTelemetry.SourceName);
                 switch (exporter)
                 {
                     case "console":

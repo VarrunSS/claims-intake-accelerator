@@ -173,7 +173,7 @@ public class LegacyClaimWriterTests
     [Fact]
     public async Task Against_the_real_legacy_mock_repeated_approvals_make_one_claim_and_use_up_one_number()
     {
-        using var legacy = new WebApplicationFactory<LegacyMarker>();
+        using var legacy = new LegacyFactory();
         using var factory = new ApiFactory();
         using var api = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -184,11 +184,11 @@ public class LegacyClaimWriterTests
         var second = await Seed(api, "inbox/second.pdf");
         var third = await Seed(api, "inbox/third.pdf");
 
-        var firstTry = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest("a.patel"));
-        var firstRetry = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest("a.patel"));
-        var other = await client.PostAsJsonAsync($"/claims/{second.Id}/approve", new ApproveRequest("a.patel"));
-        var firstAgain = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest("a.patel"));
-        var next = await client.PostAsJsonAsync($"/claims/{third.Id}/approve", new ApproveRequest("a.patel"));
+        var firstTry = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest());
+        var firstRetry = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest());
+        var other = await client.PostAsJsonAsync($"/claims/{second.Id}/approve", new ApproveRequest());
+        var firstAgain = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest());
+        var next = await client.PostAsJsonAsync($"/claims/{third.Id}/approve", new ApproveRequest());
 
         string? Reference(HttpResponseMessage r) => r.Content.ReadFromJsonAsync<JsonElement>().GetAwaiter().GetResult().GetProperty("legacyReference").GetString();
         Assert.Equal("LC-000001", Reference(firstTry));

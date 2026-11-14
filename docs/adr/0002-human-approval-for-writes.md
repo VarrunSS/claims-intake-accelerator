@@ -2,7 +2,7 @@
 
 > Thames Mutual Insurance is a fictional customer. See [00-discovery.md](../00-discovery.md).
 
-- Status: accepted
+- Status: accepted. Amended in Milestone 6a: the reviewer is now verified and segregation of duties is enforced ([ADR 0009](0009-identity-roles-and-segregation-of-duties.md)).
 - Date: 2026-11-13
 
 ## Context
@@ -28,17 +28,18 @@ In practice:
 
 - The `create_claim` tool (named `propose_claim` from Milestone 3, [ADR 0006](0006-policy-wording-rag.md)) does not call the legacy system. It validates the arguments and stores a **proposed
   claim** with status `NeedsReview`. It returns "pending approval" to the agent.
-- The review API exposes `POST /claims/{id}/approve` and `POST /claims/{id}/reject`. Both require an identified
-  reviewer. Rejection requires a reason.
+- The review API exposes `POST /claims/{id}/approve` and `POST /claims/{id}/reject`. Both require a signed-in
+  handler: the reviewer is the `oid` of the Entra ID token, never a field in the body (a body that names one is a 400).
+  Rejection requires a reason.
 - Only the approval path calls the legacy system, using an idempotency key derived from the claim id, so a
   retry cannot create a second claim.
 - The domain model enforces the rules, not just the screen. `Claim.Approve` refuses a claim that has
-  data-quality errors, or one that has already been decided. This is implemented in `ClaimsIntake.Domain` and
-  tested.
+  data-quality errors, or one that has already been decided, and **one routed to senior review unless the approver holds
+  the `SeniorHandler` role**. This is implemented in `ClaimsIntake.Domain` and tested for every route and role pair.
 - Read-only tools (`lookup_policy`, `search_policy_wording`, `check_duplicate`) run freely. They cannot change
   anything.
-- Each decision records who, when, and for a rejection, why. Each tool call is written to an audit table
-  (Milestone 3).
+- Each decision records who (the token's `oid`), in which role, when, and for a rejection, why (in the claim; the audit
+  record holds only the reason's length). Each decision and each tool call is written to the audit trail (Milestones 3 and 6a).
 
 Whether the agent framework also offers its own approval step for tools is a convenience. Our guarantee does
 not depend on it, because the write path does not exist inside the agent.
@@ -60,8 +61,8 @@ Costs:
   passed claims (G2) and by sampling.
 - Claims with data-quality errors cannot be approved until a handler corrects the field or rejects the claim.
   Editing fields in the review screen comes in a later milestone. Until then, such claims can only be rejected.
-- The reviewer name is taken from the request body in Milestone 1. It will come from the signed-in Entra ID
-  user in Milestone 6. This is a known gap, listed in the README.
+- Until Milestone 6a the reviewer was taken from the request body, which anyone could set. It now comes from the
+  token. This is verified with test-signed tokens only; it has never run against a real tenant.
 
 ## Alternatives considered
 

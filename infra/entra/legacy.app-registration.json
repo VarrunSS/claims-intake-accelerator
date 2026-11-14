@@ -1,0 +1,54 @@
+{
+  "_comment": "App registration for the legacy claims mock (ADR 0009). App roles are for service identities only. Not applied by any script in this repository.",
+  "displayName": "claims-intake-legacy",
+  "signInAudience": "AzureADMyOrg",
+  "identifierUris": [
+    "api://claims-intake-legacy"
+  ],
+  "api": {
+    "requestedAccessTokenVersion": 2
+  },
+  "optionalClaims": {
+    "accessToken": [
+      {
+        "name": "idtyp",
+        "essential": false
+      }
+    ]
+  },
+  "appRoles": [
+    {
+      "id": "7f10995e-bedd-5c9e-a5a8-d011d0e0bebe",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "displayName": "Write claims",
+      "description": "App-only. Creates a claim. Granted to the review API's identity only.",
+      "isEnabled": true,
+      "value": "Claims.Write",
+      "origin": "Application"
+    },
+    {
+      "id": "ec451699-25c9-54ee-86b9-2b8d2189a6ff",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "displayName": "Read claims",
+      "description": "App-only. Reads claims for the duplicate check. Granted to the intake pipeline's identity.",
+      "isEnabled": true,
+      "value": "Claims.Read",
+      "origin": "Application"
+    },
+    {
+      "id": "bff195fb-507e-5610-9804-4b5877554820",
+      "allowedMemberTypes": [
+        "Application"
+      ],
+      "displayName": "Read policies",
+      "description": "App-only. Reads policies. Granted to the intake pipeline's identity.",
+      "isEnabled": true,
+      "value": "Policies.Read",
+      "origin": "Application"
+    }
+  ]
+}

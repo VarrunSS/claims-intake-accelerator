@@ -9,7 +9,7 @@ public class RuleBasedClaimAssessorTests
 {
     private static async Task<(ClaimAssessment Assessment, ClaimTools Tools)> Assess(AssessmentContext context, IExistingClaims? existing = null)
     {
-        var tools = Assessing.Tools(claimId: context.ClaimId, existing: existing);
+        var tools = Assessing.Tools(existing: existing, context: context);
         var assessment = await new RuleBasedClaimAssessor().AssessAsync(context, tools, CancellationToken.None);
         return (assessment, tools);
     }
@@ -175,9 +175,10 @@ public class RuleBasedClaimAssessorTests
     public async Task The_wording_search_is_limited_to_the_wording_of_the_policy()
     {
         var search = new CountingSearch(Corpus.Search());
-        var tools = Assessing.Tools(search: search);
+        var context = Assessing.Context(policy: "TM-CP-100006");
+        var tools = Assessing.Tools(search: search, context: context);
 
-        await new RuleBasedClaimAssessor().AssessAsync(Assessing.Context(policy: "TM-CP-100006"), tools, CancellationToken.None);
+        await new RuleBasedClaimAssessor().AssessAsync(context, tools, CancellationToken.None);
 
         Assert.All(search.Calls, c => Assert.Equal("TM-PW-OF-2026", c.WordingId));
     }
@@ -187,9 +188,10 @@ public class RuleBasedClaimAssessorTests
     {
         var search = new CountingSearch(Corpus.Search());
         var existing = new FakeExistingClaims();
-        var tools = Assessing.Tools(search: search, existing: existing);
+        var context = Assessing.Context(policy: "TM-CP-999999");
+        var tools = Assessing.Tools(search: search, existing: existing, context: context);
 
-        var assessment = await new RuleBasedClaimAssessor().AssessAsync(Assessing.Context(policy: "TM-CP-999999"), tools, CancellationToken.None);
+        var assessment = await new RuleBasedClaimAssessor().AssessAsync(context, tools, CancellationToken.None);
 
         Assert.Empty(assessment.Findings);
         Assert.Contains("could not be identified", Assert.Single(assessment.Notes));

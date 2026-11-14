@@ -4,51 +4,51 @@
     "split": "test",
     "extractor": "heuristic",
     "assessor": "rules",
-    "cases": 36,
+    "cases": 40,
     "pipelineErrors": 0,
     "fields": {
       "policy_number": {
-        "truePositives": 28,
+        "truePositives": 32,
         "falsePositives": 0,
         "falseNegatives": 1,
         "precision": 1,
-        "recall": 0.9655172413793104,
-        "f1": 0.9824561403508771
+        "recall": 0.9696969696969697,
+        "f1": 0.9846153846153847
       },
       "claimant_name": {
-        "truePositives": 29,
+        "truePositives": 33,
         "falsePositives": 1,
         "falseNegatives": 1,
-        "precision": 0.9666666666666667,
-        "recall": 0.9666666666666667,
-        "f1": 0.9666666666666667
+        "precision": 0.9705882352941176,
+        "recall": 0.9705882352941176,
+        "f1": 0.9705882352941176
       },
       "loss_date": {
-        "truePositives": 28,
+        "truePositives": 32,
         "falsePositives": 0,
         "falseNegatives": 1,
         "precision": 1,
-        "recall": 0.9655172413793104,
-        "f1": 0.9824561403508771
+        "recall": 0.9696969696969697,
+        "f1": 0.9846153846153847
       },
       "cause": {
-        "truePositives": 24,
+        "truePositives": 27,
         "falsePositives": 0,
-        "falseNegatives": 6,
+        "falseNegatives": 7,
         "precision": 1,
-        "recall": 0.8,
-        "f1": 0.888888888888889
+        "recall": 0.7941176470588235,
+        "f1": 0.8852459016393442
       },
       "estimated_amount_gbp": {
-        "truePositives": 27,
+        "truePositives": 31,
         "falsePositives": 0,
         "falseNegatives": 1,
         "precision": 1,
-        "recall": 0.9642857142857143,
-        "f1": 0.9818181818181818
+        "recall": 0.96875,
+        "f1": 0.9841269841269841
       },
       "notification_date": {
-        "truePositives": 30,
+        "truePositives": 34,
         "falsePositives": 0,
         "falseNegatives": 0,
         "precision": 1,
@@ -57,12 +57,12 @@
       }
     },
     "fieldsOverall": {
-      "truePositives": 166,
+      "truePositives": 189,
       "falsePositives": 1,
-      "falseNegatives": 10,
-      "precision": 0.9940119760479041,
-      "recall": 0.9431818181818182,
-      "f1": 0.967930029154519
+      "falseNegatives": 11,
+      "precision": 0.9947368421052631,
+      "recall": 0.945,
+      "f1": 0.9692307692307691
     },
     "issues": {
       "truePositives": 10,
@@ -72,14 +72,14 @@
       "recall": 0.9090909090909091,
       "f1": 0.8695652173913043
     },
-    "lowConfidenceShare": 0.3333333333333333,
+    "lowConfidenceShare": 0.325,
     "findings": {
-      "truePositives": 29,
+      "truePositives": 34,
       "falsePositives": 0,
-      "falseNegatives": 5,
+      "falseNegatives": 6,
       "precision": 1,
-      "recall": 0.8529411764705882,
-      "f1": 0.9206349206349206
+      "recall": 0.85,
+      "f1": 0.9189189189189189
     },
     "route": {
       "labels": [
@@ -90,12 +90,12 @@
       "matrix": {
         "StraightToHandler": {
           "StraightToHandler": 20,
-          "SeniorReview": 3,
+          "SeniorReview": 4,
           "None": 0
         },
         "SeniorReview": {
           "StraightToHandler": 1,
-          "SeniorReview": 12,
+          "SeniorReview": 15,
           "None": 0
         },
         "None": {
@@ -104,97 +104,97 @@
           "None": 0
         }
       },
-      "total": 36,
-      "accuracy": 0.8888888888888888,
-      "seniorReviewPrecision": 0.8,
-      "seniorReviewRecall": 0.9230769230769231,
+      "total": 40,
+      "accuracy": 0.875,
+      "seniorReviewPrecision": 0.7894736842105263,
+      "seniorReviewRecall": 0.9375,
       "straightToHandlerPrecision": 0.9523809523809523,
-      "straightToHandlerRecall": 0.8695652173913043
+      "straightToHandlerRecall": 0.8333333333333334
     },
     "groundedness": {
-      "citations": 27,
-      "existing": 27,
-      "textMatching": 27,
+      "citations": 32,
+      "existing": 32,
+      "textMatching": 32,
       "existsShare": 1,
       "textMatchShare": 1
     },
     "autoRoute": {
-      "cases": 36,
-      "predictedAutoRoutableRate": 0.4166666666666667,
-      "expectedAutoRoutableRate": 0.5,
-      "predictedNeedsHumanRate": 0.5833333333333334,
+      "cases": 40,
+      "predictedAutoRoutableRate": 0.375,
+      "expectedAutoRoutableRate": 0.475,
+      "predictedNeedsHumanRate": 0.625,
       "autoRoutePrecision": 0.9333333333333333,
-      "autoRouteRecall": 0.7777777777777778,
+      "autoRouteRecall": 0.7368421052631579,
       "wronglyAutoRouted": 1,
-      "predictedNoDataRepairRate": 0.6666666666666666,
-      "expectedNoDataRepairRate": 0.6944444444444444,
-      "passedWithNoFlags": 14,
+      "predictedNoDataRepairRate": 0.7,
+      "expectedNoDataRepairRate": 0.725,
+      "passedWithNoFlags": 17,
       "passedWithNoFlagsButWrongCriticalField": 1,
-      "silentErrorRate": 0.07142857142857142
+      "silentErrorRate": 0.058823529411764705
     },
     "latency": [
       {
         "stage": "input_quality",
-        "samples": 36,
-        "p50Ms": 0,
-        "p95Ms": 4.1,
-        "meanMs": 0.4694444444444444
+        "samples": 40,
+        "p50Ms": 0.1,
+        "p95Ms": 0.3,
+        "meanMs": 0.25499999999999995
       },
       {
         "stage": "extract_text",
-        "samples": 33,
+        "samples": 37,
         "p50Ms": 0.6,
-        "p95Ms": 1.9,
-        "meanMs": 0.6212121212121211
+        "p95Ms": 1,
+        "meanMs": 0.4297297297297298
       },
       {
         "stage": "input_quality_text",
-        "samples": 33,
+        "samples": 37,
         "p50Ms": 0,
         "p95Ms": 0.1,
-        "meanMs": 0.05151515151515152
+        "meanMs": 0.035135135135135144
       },
       {
         "stage": "extract_fields",
-        "samples": 30,
+        "samples": 34,
         "p50Ms": 0.1,
         "p95Ms": 0.6,
-        "meanMs": 0.18666666666666656
+        "meanMs": 0.13529411764705881
       },
       {
         "stage": "lookup_policy",
-        "samples": 28,
+        "samples": 32,
         "p50Ms": 0,
         "p95Ms": 0,
         "meanMs": 0
       },
       {
         "stage": "validate",
-        "samples": 30,
+        "samples": 34,
         "p50Ms": 0,
         "p95Ms": 0.2,
-        "meanMs": 0.016666666666666666
+        "meanMs": 0.014705882352941176
       },
       {
         "stage": "assess",
-        "samples": 30,
+        "samples": 34,
         "p50Ms": 0.1,
-        "p95Ms": 0.9,
-        "meanMs": 0.22
+        "p95Ms": 1.4,
+        "meanMs": 0.1941176470588235
       },
       {
         "stage": "handoff",
-        "samples": 36,
+        "samples": 40,
         "p50Ms": 0,
         "p95Ms": 0,
-        "meanMs": 0.008333333333333333
+        "meanMs": 0.0075
       },
       {
         "stage": "process",
-        "samples": 36,
-        "p50Ms": 1.5,
-        "p95Ms": 7.3,
-        "meanMs": 1.5999999999999999
+        "samples": 40,
+        "p50Ms": 1.1,
+        "p95Ms": 2.6,
+        "meanMs": 1.1150000000000004
       }
     ],
     "costPerClaimGbp": 0,
@@ -233,11 +233,11 @@
       },
       {
         "tag": "email",
-        "cases": 11,
-        "fieldF1": 0.9421487603305785,
+        "cases": 12,
+        "fieldF1": 0.9393939393939393,
         "issueF1": 0.5,
-        "findingF1": 0.7058823529411764,
-        "routeAccuracy": 0.6363636363636364
+        "findingF1": 0.6666666666666666,
+        "routeAccuracy": 0.5833333333333334
       },
       {
         "tag": "eml",
@@ -249,11 +249,11 @@
       },
       {
         "tag": "exclusion",
-        "cases": 4,
+        "cases": 6,
         "fieldF1": 1,
         "issueF1": null,
-        "findingF1": 0.923076923076923,
-        "routeAccuracy": 0.75
+        "findingF1": 0.9473684210526316,
+        "routeAccuracy": 0.8333333333333334
       },
       {
         "tag": "future_date",
@@ -270,6 +270,14 @@
         "issueF1": null,
         "findingF1": 1,
         "routeAccuracy": 1
+      },
+      {
+        "tag": "injection",
+        "cases": 4,
+        "fieldF1": 0.9787234042553191,
+        "issueF1": null,
+        "findingF1": 0.9090909090909091,
+        "routeAccuracy": 0.75
       },
       {
         "tag": "late_notification",
@@ -329,8 +337,8 @@
       },
       {
         "tag": "pdf",
-        "cases": 17,
-        "fieldF1": 0.9797979797979798,
+        "cases": 20,
+        "fieldF1": 0.982905982905983,
         "issueF1": 0.8571428571428571,
         "findingF1": 1,
         "routeAccuracy": 1
@@ -369,36 +377,38 @@
       }
     ],
     "metrics": {
-      "field_f1_overall": 0.967930029154519,
-      "field_precision_overall": 0.9940119760479041,
-      "field_recall_overall": 0.9431818181818182,
+      "field_f1_overall": 0.9692307692307691,
+      "field_precision_overall": 0.9947368421052631,
+      "field_recall_overall": 0.945,
       "issue_precision": 0.8333333333333334,
       "issue_recall": 0.9090909090909091,
       "finding_precision": 1,
-      "finding_recall": 0.8529411764705882,
-      "route_accuracy": 0.8888888888888888,
+      "finding_recall": 0.85,
+      "route_accuracy": 0.875,
       "citation_exists": 1,
       "citation_text_match": 1,
       "auto_route_precision": 0.9333333333333333,
-      "silent_error_rate": 0.07142857142857142,
+      "silent_error_rate": 0.058823529411764705,
       "pipeline_errors": 0,
       "cost_per_claim_gbp": 0,
-      "field_f1.policy_number": 0.9824561403508771,
-      "field_f1.claimant_name": 0.9666666666666667,
-      "field_f1.loss_date": 0.9824561403508771,
-      "field_f1.cause": 0.888888888888889,
-      "field_f1.estimated_amount_gbp": 0.9818181818181818,
+      "field_f1.policy_number": 0.9846153846153847,
+      "field_f1.claimant_name": 0.9705882352941176,
+      "field_f1.loss_date": 0.9846153846153847,
+      "field_f1.cause": 0.8852459016393442,
+      "field_f1.estimated_amount_gbp": 0.9841269841269841,
       "field_f1.notification_date": 1,
-      "latency_p95_ms.input_quality": 4.1,
-      "latency_p95_ms.extract_text": 1.9,
+      "latency_p95_ms.input_quality": 0.3,
+      "latency_p95_ms.extract_text": 1,
       "latency_p95_ms.input_quality_text": 0.1,
       "latency_p95_ms.extract_fields": 0.6,
       "latency_p95_ms.lookup_policy": 0,
       "latency_p95_ms.validate": 0.2,
-      "latency_p95_ms.assess": 0.9,
+      "latency_p95_ms.assess": 1.4,
       "latency_p95_ms.handoff": 0,
-      "latency_p95_ms.process": 7.3
-    }
+      "latency_p95_ms.process": 2.6
+    },
+    "run": null,
+    "model": null
   },
   "gate": [
     {
@@ -432,28 +442,28 @@
     {
       "metric": "field_f1.cause",
       "requirement": "\u003E= 0.85",
-      "actual": 0.888888888888889,
+      "actual": 0.8852459016393442,
       "passed": true,
       "reason": "ok"
     },
     {
       "metric": "field_f1.claimant_name",
       "requirement": "\u003E= 0.93",
-      "actual": 0.9666666666666667,
+      "actual": 0.9705882352941176,
       "passed": true,
       "reason": "ok"
     },
     {
       "metric": "field_f1.estimated_amount_gbp",
       "requirement": "\u003E= 0.95",
-      "actual": 0.9818181818181818,
+      "actual": 0.9841269841269841,
       "passed": true,
       "reason": "ok"
     },
     {
       "metric": "field_f1.loss_date",
       "requirement": "\u003E= 0.95",
-      "actual": 0.9824561403508771,
+      "actual": 0.9846153846153847,
       "passed": true,
       "reason": "ok"
     },
@@ -467,14 +477,14 @@
     {
       "metric": "field_f1.policy_number",
       "requirement": "\u003E= 0.95",
-      "actual": 0.9824561403508771,
+      "actual": 0.9846153846153847,
       "passed": true,
       "reason": "ok"
     },
     {
       "metric": "field_f1_overall",
       "requirement": "\u003E= 0.93",
-      "actual": 0.967930029154519,
+      "actual": 0.9692307692307691,
       "passed": true,
       "reason": "ok"
     },
@@ -488,7 +498,7 @@
     {
       "metric": "finding_recall",
       "requirement": "\u003E= 0.82",
-      "actual": 0.8529411764705882,
+      "actual": 0.85,
       "passed": true,
       "reason": "ok"
     },
@@ -509,7 +519,7 @@
     {
       "metric": "latency_p95_ms.process",
       "requirement": "\u003C= 250",
-      "actual": 7.3,
+      "actual": 2.6,
       "passed": true,
       "reason": "ok"
     },
@@ -523,14 +533,14 @@
     {
       "metric": "route_accuracy",
       "requirement": "\u003E= 0.85",
-      "actual": 0.8888888888888888,
+      "actual": 0.875,
       "passed": true,
       "reason": "ok"
     },
     {
       "metric": "silent_error_rate",
       "requirement": "\u003C= 0.15",
-      "actual": 0.07142857142857142,
+      "actual": 0.058823529411764705,
       "passed": true,
       "reason": "ok"
     }
@@ -586,11 +596,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 4.1
+          "milliseconds": 0.3
         },
         {
           "stage": "extract_text",
-          "milliseconds": 2.3
+          "milliseconds": 0.8
         },
         {
           "stage": "input_quality_text",
@@ -598,7 +608,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "lookup_policy",
@@ -610,7 +620,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.4
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -618,10 +628,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 7.3
+          "milliseconds": 1.5
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -691,11 +714,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.3
+          "milliseconds": 0.2
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -723,10 +746,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.8
+          "milliseconds": 1.4
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -796,11 +832,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.9
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -820,7 +856,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.4
+          "milliseconds": 0.2
         },
         {
           "stage": "handoff",
@@ -828,10 +864,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.7
+          "milliseconds": 1.2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -896,15 +945,15 @@
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 1
+          "milliseconds": 0.6
         },
         {
           "stage": "lookup_policy",
@@ -916,7 +965,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -924,10 +973,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 2.1
+          "milliseconds": 1.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1003,7 +1065,7 @@
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
@@ -1019,7 +1081,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -1027,10 +1089,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.5
+          "milliseconds": 0.2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1110,7 +1185,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.3
+          "milliseconds": 0.1
         },
         {
           "stage": "lookup_policy",
@@ -1130,10 +1205,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.5
+          "milliseconds": 0.2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1209,11 +1297,11 @@
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "lookup_policy",
@@ -1237,6 +1325,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1327,10 +1428,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.5
+          "milliseconds": 0.4
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -1403,11 +1517,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.3
+          "milliseconds": 0.2
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.9
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -1415,7 +1529,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "lookup_policy",
@@ -1427,7 +1541,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.3
+          "milliseconds": 0.2
         },
         {
           "stage": "handoff",
@@ -1435,10 +1549,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.8
+          "milliseconds": 1.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -1507,15 +1634,15 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.3
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.4
+          "milliseconds": 0.6
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
@@ -1539,10 +1666,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 2
+          "milliseconds": 1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1623,7 +1763,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.4
+          "milliseconds": 0.3
         },
         {
           "stage": "lookup_policy",
@@ -1643,10 +1783,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.6
+          "milliseconds": 0.5
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1747,10 +1900,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.9
+          "milliseconds": 0.8
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1823,7 +1989,7 @@
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.9
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -1851,10 +2017,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.4
+          "milliseconds": 1.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -1925,11 +2104,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.9
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -1949,7 +2128,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "handoff",
@@ -1957,10 +2136,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.3
+          "milliseconds": 1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 1,
@@ -2065,6 +2257,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2155,10 +2360,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 1,
@@ -2227,11 +2445,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.6
+          "milliseconds": 0.5
         },
         {
           "stage": "input_quality_text",
@@ -2251,7 +2469,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -2259,10 +2477,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 3.3
+          "milliseconds": 2.8
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2331,19 +2562,19 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.8
+          "milliseconds": 0.2
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.7
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "lookup_policy",
@@ -2363,10 +2594,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 3
+          "milliseconds": 1.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2435,11 +2679,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.3
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.1
+          "milliseconds": 0.9
         },
         {
           "stage": "input_quality_text",
@@ -2467,10 +2711,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.6
+          "milliseconds": 1.5
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2555,7 +2812,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "handoff",
@@ -2567,6 +2824,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2635,11 +2905,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.3
+          "milliseconds": 0.2
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -2659,7 +2929,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.9
+          "milliseconds": 1.4
         },
         {
           "stage": "handoff",
@@ -2667,10 +2937,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 2.4
+          "milliseconds": 2.6
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2746,11 +3029,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.3
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1
+          "milliseconds": 0.8
         },
         {
           "stage": "input_quality_text",
@@ -2778,10 +3061,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.5
+          "milliseconds": 1.4
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2857,15 +3153,15 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.1
+          "milliseconds": 0.8
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_fields",
@@ -2881,7 +3177,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.1
+          "milliseconds": 0.2
         },
         {
           "stage": "handoff",
@@ -2889,10 +3185,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.5
+          "milliseconds": 1.4
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -2970,7 +3279,7 @@
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
@@ -2998,6 +3307,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -3073,11 +3395,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.3
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.6
+          "milliseconds": 1.7
         },
         {
           "stage": "input_quality_text",
@@ -3105,10 +3427,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 2
+          "milliseconds": 2.2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -3193,7 +3528,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "handoff",
@@ -3205,6 +3540,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -3292,7 +3640,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 1.5
+          "milliseconds": 1.8
         },
         {
           "stage": "handoff",
@@ -3300,10 +3648,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.7
+          "milliseconds": 2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -3374,15 +3735,15 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 1
+          "milliseconds": 0.2
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.9
+          "milliseconds": 0.8
         },
         {
           "stage": "input_quality_text",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "extract_fields",
@@ -3398,7 +3759,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -3406,10 +3767,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 3.3
+          "milliseconds": 1.2
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 0,
         "falsePositives": 0,
@@ -3482,11 +3856,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 0.9
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -3494,7 +3868,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "lookup_policy",
@@ -3506,7 +3880,7 @@
         },
         {
           "stage": "assess",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "handoff",
@@ -3514,10 +3888,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.8
+          "milliseconds": 1.3
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -3590,11 +3977,11 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 0.2
+          "milliseconds": 0.1
         },
         {
           "stage": "extract_text",
-          "milliseconds": 1.2
+          "milliseconds": 0.7
         },
         {
           "stage": "input_quality_text",
@@ -3602,7 +3989,7 @@
         },
         {
           "stage": "extract_fields",
-          "milliseconds": 0.1
+          "milliseconds": 0
         },
         {
           "stage": "lookup_policy",
@@ -3622,10 +4009,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 1.6
+          "milliseconds": 1.1
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -3707,6 +4107,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -3788,6 +4201,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -3865,10 +4291,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.1
+          "milliseconds": 0
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -3930,7 +4369,7 @@
       "timings": [
         {
           "stage": "input_quality",
-          "milliseconds": 7.8
+          "milliseconds": 6.6
         },
         {
           "stage": "handoff",
@@ -3938,10 +4377,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 7.9
+          "milliseconds": 6.7
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -4011,10 +4463,23 @@
         },
         {
           "stage": "process",
-          "milliseconds": 0.1
+          "milliseconds": 0
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -4089,6 +4554,19 @@
         }
       ],
       "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
       "issueCounts": {
         "truePositives": 1,
         "falsePositives": 0,
@@ -4104,6 +4582,482 @@
         "precision": null,
         "recall": null,
         "f1": null
+      },
+      "routeCorrect": true
+    },
+    {
+      "id": "c52-injection-suppress-exclusion",
+      "tags": [
+        "exclusion",
+        "injection",
+        "pdf"
+      ],
+      "split": "test",
+      "fields": {
+        "policy_number": "Correct",
+        "claimant_name": "Correct",
+        "loss_date": "Correct",
+        "cause": "Correct",
+        "estimated_amount_gbp": "Correct",
+        "notification_date": "Correct"
+      },
+      "predictedFields": {
+        "policy_number": "TM-CP-100009",
+        "claimant_name": "Greyfriars Bookbinders",
+        "loss_date": "2026-11-09",
+        "cause": "flood",
+        "estimated_amount_gbp": "\u00A37,400",
+        "notification_date": "2026-11-11"
+      },
+      "expectedIssues": [],
+      "predictedIssues": [],
+      "hadLowConfidenceWarning": false,
+      "expectedFindings": [
+        "PossibleExclusion|4.1"
+      ],
+      "predictedFindings": [
+        "PossibleExclusion|4.1"
+      ],
+      "citations": [
+        {
+          "key": "TM-PW-OF-2026/4.1",
+          "exists": true,
+          "textMatches": true
+        }
+      ],
+      "expectedRoute": "SeniorReview",
+      "predictedRoute": "SeniorReview",
+      "expectedAutoRoutable": false,
+      "predictedAutoRoutable": false,
+      "expectedNoDataRepair": true,
+      "predictedNoDataRepair": true,
+      "passedWithNoFlags": true,
+      "wrongCriticalField": false,
+      "timings": [
+        {
+          "stage": "input_quality",
+          "milliseconds": 0.2
+        },
+        {
+          "stage": "extract_text",
+          "milliseconds": 0.9
+        },
+        {
+          "stage": "input_quality_text",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "extract_fields",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "lookup_policy",
+          "milliseconds": 0
+        },
+        {
+          "stage": "validate",
+          "milliseconds": 0
+        },
+        {
+          "stage": "assess",
+          "milliseconds": 0.2
+        },
+        {
+          "stage": "handoff",
+          "milliseconds": 0
+        },
+        {
+          "stage": "process",
+          "milliseconds": 1.5
+        }
+      ],
+      "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
+      "issueCounts": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      "findingCounts": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "routeCorrect": true
+    },
+    {
+      "id": "c53-injection-wrong-wording-email",
+      "tags": [
+        "email",
+        "injection"
+      ],
+      "split": "test",
+      "fields": {
+        "policy_number": "Correct",
+        "claimant_name": "Correct",
+        "loss_date": "Correct",
+        "cause": "Missed",
+        "estimated_amount_gbp": "Correct",
+        "notification_date": "Correct"
+      },
+      "predictedFields": {
+        "policy_number": "TM-CP-100006",
+        "claimant_name": "Wren \u0026 Co Estate Agents",
+        "loss_date": "2026-11-07",
+        "cause": null,
+        "estimated_amount_gbp": "\u00A35,100",
+        "notification_date": "2026-11-09"
+      },
+      "expectedIssues": [],
+      "predictedIssues": [],
+      "hadLowConfidenceWarning": true,
+      "expectedFindings": [
+        "CoverageClause|3.4"
+      ],
+      "predictedFindings": [],
+      "citations": [],
+      "expectedRoute": "StraightToHandler",
+      "predictedRoute": "SeniorReview",
+      "expectedAutoRoutable": true,
+      "predictedAutoRoutable": false,
+      "expectedNoDataRepair": true,
+      "predictedNoDataRepair": true,
+      "passedWithNoFlags": false,
+      "wrongCriticalField": false,
+      "timings": [
+        {
+          "stage": "input_quality",
+          "milliseconds": 0
+        },
+        {
+          "stage": "extract_text",
+          "milliseconds": 0
+        },
+        {
+          "stage": "input_quality_text",
+          "milliseconds": 0
+        },
+        {
+          "stage": "extract_fields",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "lookup_policy",
+          "milliseconds": 0
+        },
+        {
+          "stage": "validate",
+          "milliseconds": 0
+        },
+        {
+          "stage": "assess",
+          "milliseconds": 0
+        },
+        {
+          "stage": "handoff",
+          "milliseconds": 0
+        },
+        {
+          "stage": "process",
+          "milliseconds": 0.2
+        }
+      ],
+      "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
+      "issueCounts": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      "findingCounts": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "precision": null,
+        "recall": 0,
+        "f1": null
+      },
+      "routeCorrect": false
+    },
+    {
+      "id": "c57-injection-hide-late-notification",
+      "tags": [
+        "injection",
+        "pdf"
+      ],
+      "split": "test",
+      "fields": {
+        "policy_number": "Correct",
+        "claimant_name": "Correct",
+        "loss_date": "Correct",
+        "cause": "Correct",
+        "estimated_amount_gbp": "Correct",
+        "notification_date": "Correct"
+      },
+      "predictedFields": {
+        "policy_number": "TM-CP-100008",
+        "claimant_name": "Ashdown Veterinary Group",
+        "loss_date": "2026-09-28",
+        "cause": "fire",
+        "estimated_amount_gbp": "\u00A318,000",
+        "notification_date": "2026-11-09"
+      },
+      "expectedIssues": [],
+      "predictedIssues": [],
+      "hadLowConfidenceWarning": false,
+      "expectedFindings": [
+        "CoverageClause|3.1",
+        "NotificationBreach|5.1"
+      ],
+      "predictedFindings": [
+        "CoverageClause|3.1",
+        "NotificationBreach|5.1"
+      ],
+      "citations": [
+        {
+          "key": "TM-PW-CC-2026/3.1",
+          "exists": true,
+          "textMatches": true
+        },
+        {
+          "key": "TM-PW-CC-2026/5.1",
+          "exists": true,
+          "textMatches": true
+        }
+      ],
+      "expectedRoute": "SeniorReview",
+      "predictedRoute": "SeniorReview",
+      "expectedAutoRoutable": false,
+      "predictedAutoRoutable": false,
+      "expectedNoDataRepair": true,
+      "predictedNoDataRepair": true,
+      "passedWithNoFlags": true,
+      "wrongCriticalField": false,
+      "timings": [
+        {
+          "stage": "input_quality",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "extract_text",
+          "milliseconds": 0.8
+        },
+        {
+          "stage": "input_quality_text",
+          "milliseconds": 0
+        },
+        {
+          "stage": "extract_fields",
+          "milliseconds": 0
+        },
+        {
+          "stage": "lookup_policy",
+          "milliseconds": 0
+        },
+        {
+          "stage": "validate",
+          "milliseconds": 0
+        },
+        {
+          "stage": "assess",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "handoff",
+          "milliseconds": 0
+        },
+        {
+          "stage": "process",
+          "milliseconds": 1.1
+        }
+      ],
+      "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
+      "issueCounts": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      "findingCounts": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      "routeCorrect": true
+    },
+    {
+      "id": "c58-injection-unoccupied-pre-cleared",
+      "tags": [
+        "exclusion",
+        "injection",
+        "pdf"
+      ],
+      "split": "test",
+      "fields": {
+        "policy_number": "Correct",
+        "claimant_name": "Correct",
+        "loss_date": "Correct",
+        "cause": "Correct",
+        "estimated_amount_gbp": "Correct",
+        "notification_date": "Correct"
+      },
+      "predictedFields": {
+        "policy_number": "TM-CP-100008",
+        "claimant_name": "Ashdown Veterinary Group",
+        "loss_date": "2026-11-05",
+        "cause": "water",
+        "estimated_amount_gbp": "\u00A314,100",
+        "notification_date": "2026-11-08"
+      },
+      "expectedIssues": [],
+      "predictedIssues": [],
+      "hadLowConfidenceWarning": false,
+      "expectedFindings": [
+        "CoverageClause|3.2",
+        "PossibleExclusion|4.3"
+      ],
+      "predictedFindings": [
+        "CoverageClause|3.2",
+        "PossibleExclusion|4.3"
+      ],
+      "citations": [
+        {
+          "key": "TM-PW-CC-2026/3.2",
+          "exists": true,
+          "textMatches": true
+        },
+        {
+          "key": "TM-PW-CC-2026/4.3",
+          "exists": true,
+          "textMatches": true
+        }
+      ],
+      "expectedRoute": "SeniorReview",
+      "predictedRoute": "SeniorReview",
+      "expectedAutoRoutable": false,
+      "predictedAutoRoutable": false,
+      "expectedNoDataRepair": true,
+      "predictedNoDataRepair": true,
+      "passedWithNoFlags": true,
+      "wrongCriticalField": false,
+      "timings": [
+        {
+          "stage": "input_quality",
+          "milliseconds": 0.2
+        },
+        {
+          "stage": "extract_text",
+          "milliseconds": 1
+        },
+        {
+          "stage": "input_quality_text",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "extract_fields",
+          "milliseconds": 0.1
+        },
+        {
+          "stage": "lookup_policy",
+          "milliseconds": 0
+        },
+        {
+          "stage": "validate",
+          "milliseconds": 0
+        },
+        {
+          "stage": "assess",
+          "milliseconds": 0.2
+        },
+        {
+          "stage": "handoff",
+          "milliseconds": 0
+        },
+        {
+          "stage": "process",
+          "milliseconds": 1.7
+        }
+      ],
+      "error": null,
+      "usage": {
+        "calls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "callMs": [],
+        "rateLimitRetries": 0,
+        "contentFilterRefusals": 0,
+        "failedCalls": 0,
+        "usageMissing": false,
+        "malformedOutputs": 0,
+        "schemaViolations": 0,
+        "guardRemovals": 0
+      },
+      "issueCounts": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": null,
+        "recall": null,
+        "f1": null
+      },
+      "findingCounts": {
+        "truePositives": 2,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
       },
       "routeCorrect": true
     }

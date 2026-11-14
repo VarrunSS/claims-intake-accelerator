@@ -1,4 +1,7 @@
-using ClaimsIntake.Api.Telemetry;
+using System.Security.Claims;
+using Claim = ClaimsIntake.Domain.Claim;
+using ClaimsIntake.Domain.Security;
+using ClaimsIntake.Security.AspNetCore;
 using ClaimsIntake.Domain;
 using ClaimsIntake.Domain.Assessment;
 
@@ -10,10 +13,15 @@ public static class ClaimEndpoints
 
     public static IEndpointRouteBuilder MapClaimEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/claims").WithTags("Claims");
+        app.MapGet("/me", Me).RequireAuthorization(Policies.Handler).WithTags("Claims");
+
+        // Every claim route needs a signed-in person with a handler role. /history is the exception: it is for the pipeline's
+        // app-only identity and refuses user tokens.
+        app.MapGet("/claims/history", History).RequireAuthorization(Policies.ReadHistory).WithTags("Claims");
+
+        var group = app.MapGroup("/claims").WithTags("Claims").RequireAuthorization(Policies.Handler);
 
         group.MapGet("/", ListClaims);
-        group.MapGet("/history", History);
         group.MapGet("/{id:guid}", GetClaim);
         group.MapGet("/{id:guid}/audit", GetAudit);
         group.MapPost("/{id:guid}/approve", ApproveClaim);
@@ -84,20 +92,26 @@ public static class ClaimEndpoints
 
     // Approving also writes to the legacy system, so it can be repeated: an approved claim whose write failed is
     // sent again, and one that was already written is returned as it is, with no second legacy claim.
+    // The reviewer is the signed-in caller (the token's oid), never anything in the body.
     private static async Task<IResult> ApproveClaim(
         Guid id,
         ApproveRequest? request,
-        ClaimApprovalService approvals,
+        ClaimsPrincipal user,
+        ClaimDecisionService decisions,
         HttpResponse response,
         CancellationToken ct)
     {
-        var errors = ValidateDecision(request?.Reviewer, reason: null, reasonRequired: false);
-        if (errors.Count > 0)
+        if (RejectReviewerInBody(request?.Reviewer) is { } problem)
         {
-            return Results.ValidationProblem(errors);
+            return problem;
         }
 
-        var result = await approvals.ApproveAsync(id, request!.Reviewer!, ct);
+        if (user.ToApprover() is not { } approver)
+        {
+            return NoIdentity();
+        }
+
+        var result = await decisions.ApproveAsync(id, approver, ct);
         switch (result.Outcome)
         {
             case ApprovalOutcome.Submitted:
@@ -107,6 +121,8 @@ public static class ClaimEndpoints
                 return Results.Ok(ClaimDetail.From(result.Claim!));
             case ApprovalOutcome.NotFound:
                 return NotFound(id);
+            case ApprovalOutcome.Forbidden:
+                return Forbidden(result.Claim!, result.Detail!);
             case ApprovalOutcome.NotAllowed:
                 return Conflict(result.Detail!);
             case ApprovalOutcome.MissingLegacyData:
@@ -124,66 +140,72 @@ public static class ClaimEndpoints
     private static async Task<IResult> RejectClaim(
         Guid id,
         RejectRequest? request,
-        IClaimRepository repository,
-        TimeProvider time,
-        ILogger<ClaimsLog> logger,
+        ClaimsPrincipal user,
+        ClaimDecisionService decisions,
         CancellationToken ct)
     {
-        var errors = ValidateDecision(request?.Reviewer, request?.Reason, reasonRequired: true);
+        if (RejectReviewerInBody(request?.Reviewer) is { } problem)
+        {
+            return problem;
+        }
+
+        var errors = ValidateReason(request?.Reason);
         if (errors.Count > 0)
         {
             return Results.ValidationProblem(errors);
         }
 
-        var claim = await repository.GetAsync(id, ct);
-        if (claim is null)
+        if (user.ToApprover() is not { } approver)
         {
-            return NotFound(id);
+            return NoIdentity();
         }
 
-        try
+        var result = await decisions.RejectAsync(id, approver, request!.Reason!, ct);
+        return result.Outcome switch
         {
-            lock (claim)
-            {
-                claim.Reject(request!.Reviewer!, request.Reason!, time.GetUtcNow());
-            }
-        }
-        catch (InvalidClaimTransitionException ex)
-        {
-            return Conflict(ex.Message);
-        }
-
-        await repository.SaveAsync(claim, ct);
-        ApiMetrics.Decisions.Add(1, new KeyValuePair<string, object?>("decision", "rejected"));
-        logger.LogInformation("Claim {ClaimId} rejected", claim.Id);
-        return Results.Ok(ClaimDetail.From(claim));
+            ApprovalOutcome.Rejected => Results.Ok(ClaimDetail.From(result.Claim!)),
+            ApprovalOutcome.NotFound => NotFound(id),
+            ApprovalOutcome.Forbidden => Forbidden(result.Claim!, result.Detail!),
+            _ => Conflict(result.Detail!),
+        };
     }
 
-    // Reviewer identity comes from the request body until Entra ID sign-in is added (Milestone 6).
-    private static Dictionary<string, string[]> ValidateDecision(string? reviewer, string? reason, bool reasonRequired)
+    // GET /me: who the token says the caller is. The review UI shows it and uses the roles to explain what is possible.
+    private static IResult Me(ClaimsPrincipal user) =>
+        user.ToApprover() is { } who
+            ? Results.Ok(new MeDto(who.Id, who.DisplayName ?? who.Id, who.Roles, who.IsSenior))
+            : NoIdentity();
+
+    // Old clients sent the reviewer in the body. That is refused loudly rather than ignored (SEC-02).
+    private static IResult? RejectReviewerInBody(string? reviewer) =>
+        reviewer is null
+            ? null
+            : Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["reviewer"] = ["The reviewer is taken from your sign-in. Remove \"reviewer\" from the request."],
+            });
+
+    private static Dictionary<string, string[]> ValidateReason(string? reason)
     {
         var errors = new Dictionary<string, string[]>();
-
-        if (string.IsNullOrWhiteSpace(reviewer))
-        {
-            errors["reviewer"] = ["The reviewer must be identified."];
-        }
-        else if (reviewer.Length > MaxTextLength)
-        {
-            errors["reviewer"] = [$"The reviewer must be at most {MaxTextLength} characters."];
-        }
-
-        if (reasonRequired && string.IsNullOrWhiteSpace(reason))
+        if (string.IsNullOrWhiteSpace(reason))
         {
             errors["reason"] = ["A reason is required to reject a claim."];
         }
-        else if (reason is { Length: > MaxTextLength })
+        else if (reason.Length > MaxTextLength)
         {
             errors["reason"] = [$"The reason must be at most {MaxTextLength} characters."];
         }
 
         return errors;
     }
+
+    private static IResult Forbidden(Claim claim, string detail) =>
+        Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+            title: claim.RequiredApprovalRole == AppRoles.SeniorHandler ? "Senior review required" : "Not permitted", detail: detail);
+
+    private static IResult NoIdentity() =>
+        Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Caller not identified", detail: "The token has no object id (oid).");
 
     private static IResult NotFound(Guid id) =>
         Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Claim not found", detail: $"No claim with id {id}.");

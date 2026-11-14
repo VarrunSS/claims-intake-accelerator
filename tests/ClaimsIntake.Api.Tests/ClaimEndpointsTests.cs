@@ -112,13 +112,14 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         using var factory = Fresh();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest("a.patel"));
+        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var claim = await response.Content.ReadFromJsonAsync<ClaimDetail>(Json);
         Assert.Equal(ClaimStatus.Submitted, claim!.Status); // Approval also writes to the legacy system.
         Assert.Equal("LC-000001", claim.LegacyReference);
-        Assert.Equal("a.patel", claim.DecidedBy);
+        Assert.Equal(TestAuth.HandlerOid, claim.DecidedBy);
+        Assert.Equal("A Patel", claim.DecidedByName);
         Assert.Equal(ApiFactory.Now, claim.DecidedAt);
 
         var queue = await client.GetFromJsonAsync<List<ClaimSummary>>("/claims", Json);
@@ -131,7 +132,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         using var factory = Fresh();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync($"/claims/{factory.WithError.Id}/approve", new ApproveRequest("a.patel"));
+        var response = await client.PostAsJsonAsync($"/claims/{factory.WithError.Id}/approve", new ApproveRequest());
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(ClaimStatus.NeedsReview, factory.WithError.Status);
@@ -144,7 +145,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/claims/{factory.WithError.Id}/reject", new RejectRequest("a.patel", "No policy number on the document."));
+            $"/claims/{factory.WithError.Id}/reject", new RejectRequest("No policy number on the document."));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var claim = await response.Content.ReadFromJsonAsync<ClaimDetail>(Json);
@@ -158,7 +159,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         using var factory = Fresh();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/reject", new RejectRequest("a.patel", " "));
+        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/reject", new RejectRequest(" "));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("reason", await response.Content.ReadAsStringAsync());
@@ -168,29 +169,31 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
     [Theory]
     [InlineData("approve")]
     [InlineData("reject")]
-    public async Task A_decision_without_a_reviewer_is_a_400(string action)
+    public async Task A_body_that_still_names_a_reviewer_is_refused_loudly_not_ignored(string action)
     {
+        // SEC-02: the reviewer is the signed-in caller. An old client that sends one fails, so nobody believes it was used.
         using var factory = Fresh();
         var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/claims/{factory.Clean.Id}/{action}", new RejectRequest(null, "Because."));
+            $"/claims/{factory.Clean.Id}/{action}", new { reviewer = "someone.else", reason = "Because." });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("reviewer", await response.Content.ReadAsStringAsync());
         Assert.Equal(ClaimStatus.NeedsReview, factory.Clean.Status);
+        Assert.Null(factory.Clean.DecidedBy);
     }
 
     [Fact]
-    public async Task A_decision_with_no_body_is_a_400()
+    public async Task Approving_needs_no_body_at_all()
     {
         using var factory = Fresh();
         var client = factory.CreateClient();
 
         var response = await client.PostAsync($"/claims/{factory.Clean.Id}/approve", content: null);
 
-        Assert.True(response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.UnsupportedMediaType);
-        Assert.Equal(ClaimStatus.NeedsReview, factory.Clean.Status);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(TestAuth.HandlerOid, factory.Clean.DecidedBy);
     }
 
     [Fact]
@@ -198,14 +201,14 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
     {
         using var factory = Fresh();
         var client = factory.CreateClient();
-        await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest("a.patel"));
+        await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest());
 
         var second = await client.PostAsJsonAsync(
-            $"/claims/{factory.Clean.Id}/reject", new RejectRequest("b.jones", "Changed my mind."));
+            $"/claims/{factory.Clean.Id}/reject", new RejectRequest("Changed my mind."));
 
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         Assert.Equal(ClaimStatus.Submitted, factory.Clean.Status);
-        Assert.Equal("a.patel", factory.Clean.DecidedBy);
+        Assert.Equal(TestAuth.HandlerOid, factory.Clean.DecidedBy);
     }
 
     [Fact]
@@ -214,7 +217,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         using var factory = Fresh();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync($"/claims/{factory.AlreadyRejected.Id}/approve", new ApproveRequest("a.patel"));
+        var response = await client.PostAsJsonAsync($"/claims/{factory.AlreadyRejected.Id}/approve", new ApproveRequest());
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
@@ -225,7 +228,7 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         using var factory = Fresh();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync($"/claims/{Guid.NewGuid()}/approve", new ApproveRequest("a.patel"));
+        var response = await client.PostAsJsonAsync($"/claims/{Guid.NewGuid()}/approve", new ApproveRequest());
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -237,12 +240,12 @@ public class ClaimEndpointsTests : IClassFixture<ApiFactory>
         var client = factory.CreateClient();
 
         var results = await Task.WhenAll(Enumerable.Range(0, 8).Select(i =>
-            client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest($"handler{i}"))));
+            client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/approve", new ApproveRequest())));
 
         Assert.All(results, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
         Assert.Equal(1, factory.Legacy.Calls); // Calls for one claim are serialised, and later ones see it is done.
         Assert.Equal(1, results.Count(r => !r.Headers.Contains("Idempotent-Replay")));
         Assert.Equal(7, results.Count(r => r.Headers.Contains("Idempotent-Replay")));
-        Assert.StartsWith("handler", factory.Clean.DecidedBy); // Whoever got in first is recorded; the others change nothing.
+        Assert.Equal(TestAuth.HandlerOid, factory.Clean.DecidedBy); // Whoever got in first is recorded; the others change nothing.
     }
 }

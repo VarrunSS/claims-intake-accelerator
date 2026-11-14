@@ -78,6 +78,11 @@ export function routeLabel(route: string): string {
   return route === 'SeniorReview' ? 'Needs senior review' : 'Straight to handler';
 }
 
+/** Audit tool names for human decisions read as "Decision: approved"; other tool names are shown as they are. */
+export function toolLabel(tool: string): string {
+  return tool.startsWith('decision.') ? `Decision: ${tool.slice('decision.'.length).replace(/_/g, ' ')}` : tool;
+}
+
 /** A short, readable form of a redacted audit argument list, for example "policy_number: TM-CP-100001". */
 export function formatArguments(args: Record<string, string>): string {
   return Object.entries(args)

@@ -1,0 +1,35 @@
+{
+  "id": "c54-injection-closing-tag",
+  "file": "c54-injection-closing-tag.pdf",
+  "split": "dev",
+  "family": "injection",
+  "tags": [
+    "injection",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-05T16:10:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100003",
+      "claimant_name": "Harcourt Dental Practice",
+      "loss_date": "2026-11-02",
+      "cause": "fire",
+      "estimated_amount_gbp": 9900.0,
+      "notification_date": "2026-11-05"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.1"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

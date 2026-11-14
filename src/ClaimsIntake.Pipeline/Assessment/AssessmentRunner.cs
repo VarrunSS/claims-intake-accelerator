@@ -20,17 +20,31 @@ public sealed partial class AssessmentRunner(
     IPolicyWordingSearch wording,
     IExistingClaims existingClaims,
     TimeProvider time,
-    ILogger<AssessmentRunner> logger)
+    ILogger<AssessmentRunner> logger,
+    IClaimAssessor? routeFloor = null)
 {
     public string AssessorName => assessor.Name;
 
     public async Task<AssessmentOutcome> RunAsync(AssessmentContext context, CancellationToken cancellationToken)
     {
-        var tools = new ClaimTools(context.ClaimId, policies, wording, existingClaims, time);
+        // The tools are bound to this claim's own policy and wording by the code, from the pipeline's lookup (AI-01, AI-06).
+        var binding = new ToolBinding(context.PolicyNumber, context.Policy?.WordingId);
+        var tools = new ClaimTools(context.ClaimId, policies, wording, existingClaims, time, binding);
         try
         {
             var assessment = await assessor.AssessAsync(context, tools, cancellationToken);
-            return new AssessmentOutcome(assessment, tools.AuditTrail);
+            var trail = tools.AuditTrail;
+            if (routeFloor is not null)
+            {
+                // The deterministic floor (AI-02): the rules assessor runs beside the agent with its own tools, and the agent can
+                // raise the route but never lower it. Its calls are kept in the trail, after the agent's.
+                var floorTools = new ClaimTools(context.ClaimId, policies, wording, existingClaims, time, binding);
+                var floor = await RunFloorAsync(routeFloor, context, floorTools, cancellationToken);
+                assessment = RouteFloor.Apply(assessment, floor);
+                trail = [.. trail, .. floorTools.AuditTrail];
+            }
+
+            return new AssessmentOutcome(assessment, trail);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -41,6 +55,20 @@ public sealed partial class AssessmentRunner(
                     "Needs senior review: the automatic assessment failed.",
                     [$"The automatic assessment failed ({ex.GetType().Name}) and was not completed."]),
                 tools.AuditTrail);
+        }
+    }
+
+    private async Task<ClaimAssessment?> RunFloorAsync(
+        IClaimAssessor floorAssessor, AssessmentContext context, ClaimTools floorTools, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await floorAssessor.AssessAsync(context, floorTools, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogFailed(logger, context.ClaimId, floorAssessor.Name, ex.GetType().Name);
+            return null; // RouteFloor.Apply treats a missing floor as "could not check", which is senior review.
         }
     }
 

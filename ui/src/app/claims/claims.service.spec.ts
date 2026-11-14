@@ -32,24 +32,36 @@ describe('ClaimsService', () => {
     expect(entries).toHaveLength(1);
   });
 
-  it('posts the reviewer when approving', () => {
-    service.approve('abc', 'a.patel').subscribe();
+  it('posts no body when approving', () => {
+    service.approve('abc').subscribe();
     const req = http.expectOne('/api/claims/abc/approve');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ reviewer: 'a.patel' });
+    expect(req.request.body).toBeNull();
     req.flush({});
   });
 
-  it('posts the reviewer and reason when rejecting', () => {
-    service.reject('abc', 'a.patel', 'Duplicate').subscribe();
+  it('posts only the reason when rejecting', () => {
+    service.reject('abc', 'Duplicate').subscribe();
     const req = http.expectOne('/api/claims/abc/reject');
-    expect(req.request.body).toEqual({ reviewer: 'a.patel', reason: 'Duplicate' });
+    expect(req.request.body).toEqual({ reason: 'Duplicate' });
     req.flush({});
+  });
+
+  it('maps a 403 and a 401 to an ApiError with the status', () => {
+    const seen: ApiError[] = [];
+    service.approve('abc').subscribe({ error: (e: ApiError) => seen.push(e) });
+    http
+      .expectOne('/api/claims/abc/approve')
+      .flush({ title: 'Senior review required', detail: 'Only a senior handler can approve.' }, { status: 403, statusText: 'Forbidden' });
+    service.get('abc').subscribe({ error: (e: ApiError) => seen.push(e) });
+    http.expectOne('/api/claims/abc').flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(seen.map((e) => e.status)).toEqual([403, 401]);
+    expect(seen[0].title).toBe('Senior review required');
   });
 
   it('maps problem JSON to an ApiError', () => {
     let error: ApiError | undefined;
-    service.approve('abc', 'a.patel').subscribe({ error: (e: ApiError) => (error = e) });
+    service.approve('abc').subscribe({ error: (e: ApiError) => (error = e) });
     http
       .expectOne('/api/claims/abc/approve')
       .flush({ title: 'Legacy system unavailable', detail: 'Try again.', status: 502 }, { status: 502, statusText: 'Bad Gateway' });
@@ -59,11 +71,11 @@ describe('ClaimsService', () => {
   it('flattens validation errors and explains a network failure', () => {
     let first: ApiError | undefined;
     let second: ApiError | undefined;
-    service.approve('a', 'x').subscribe({ error: (e: ApiError) => (first = e) });
+    service.approve('a').subscribe({ error: (e: ApiError) => (first = e) });
     http
       .expectOne('/api/claims/a/approve')
-      .flush({ title: 'Validation', errors: { reviewer: ['The reviewer must be identified.'] } }, { status: 400, statusText: 'Bad Request' });
-    expect(first?.errors).toEqual(['The reviewer must be identified.']);
+      .flush({ title: 'Validation', errors: { reason: ['A reason is required.'] } }, { status: 400, statusText: 'Bad Request' });
+    expect(first?.errors).toEqual(['A reason is required.']);
 
     service.get('b').subscribe({ error: (e: ApiError) => (second = e) });
     http.expectOne('/api/claims/b').error(new ProgressEvent('error'));

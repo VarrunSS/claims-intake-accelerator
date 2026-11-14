@@ -20,7 +20,7 @@ Constraints that shape the design:
 - Documents are untrusted, so the agent's tools must be safe to call whatever the document says.
 - Everything has to run offline for development, CI and the reader of this repository
   ([ADR 0005](0005-local-development-mode.md)): no Azure account, no model keys, no Docker.
-- Telemetry and audit records may hold ids and counts, never claim text or personal data.
+- Telemetry and audit records may hold ids and counts, never claim text, names or free text.
 
 ## Decision
 
@@ -103,8 +103,9 @@ possible duplicate, and a recommended route (straight to a handler, or senior re
   so in its notes when it recognises nothing.
 - **`AgentClaimAssessor`** (Azure). Microsoft Agent Framework 1.28.0 (`Microsoft.Agents.AI`, pinned exactly, see
   [ADR 0004](0004-dotnet-agent-framework.md)): a `ChatClientAgent` over `IChatClient`, the four tools registered as
-  `AIFunction`s, the claim text passed as data between `<claim>` tags, and a system prompt that requires a citation
-  for every finding. The tool loop is capped at eight iterations.
+  `AIFunction`s, the claim passed as a JSON object between `<claim>` tags (a closing tag cannot occur inside it), and a
+  system prompt that requires a citation for every finding. The tool loop is capped at eight iterations and at **24 tool
+  calls** in all (Milestone 6a).
 
 Either is chosen by `Intake:Assessor` (`Rules`, `Agent` or `None`). If an assessor throws, the claim is **not**
 lost: the hand-off carries a senior-review assessment that says the automatic assessment failed, with the tool
@@ -117,6 +118,11 @@ answer against what the tools actually returned **in this run**:
 
 - A citation (wording id and clause reference) that `search_policy_wording` did not return is removed, and a note
   says so.
+- **A citation must belong to this claim's wording** (Milestone 6a, AI-01). The pipeline looks the policy up itself and
+  binds its wording id and policy number into `ClaimTools` in code. `search_policy_wording` has no wording parameter any
+  more, so the model cannot search another wording, and `CitationGuard.Validate` also removes any citation whose wording id
+  is not the expected one. `lookup_policy`, `check_duplicate` and `propose_claim` refuse any other policy number, and the
+  refusal sends the claim to senior review. `lookup_policy` no longer returns the insured's name.
 - A finding that needs a citation and has none left is dropped, with a note.
 - A possible-duplicate finding must name a claim that `check_duplicate` returned.
 - A citation that passes is **replaced by the clause as the search returned it**. The text a handler reads is the
@@ -125,6 +131,15 @@ answer against what the tools actually returned **in this run**:
   lower the route when a finding is an exclusion, a late notification or a duplicate.
 - Anything that is not valid JSON is discarded with a note. Model text is stripped of control characters and
   length-capped.
+
+**The route floor** (Milestone 6a, AI-02). The guard can only remove things, but omission is the attack that matters: a
+document that talks the model out of reporting an exclusion. So with the agent assessor the rules assessor also runs, with
+its own bound tools, and the final route is the more cautious of the two. Findings the rules check made and the agent did not
+are added, a note says the two disagreed, and `claims.assessment.route_floor_raised` counts it. The agent can raise the
+route, never lower it. **A tool-call budget** (24) makes a model that loops fail the assessment, which becomes a
+senior-review assessment (the framework swallows a tool's exception, so the assessor checks a flag).
+**Untrusted text is JSON-encoded** in both prompts with angle brackets escaped (AI-03); an `IPromptAttackDetector` seam
+(no-op locally) is where Azure AI Content Safety Prompt Shields would sit, unproven.
 
 The guard is tested with a scripted `IChatClient` that emits tool calls and then an answer, including an answer
 that cites a clause that does not exist, a model that cites without searching, a duplicate that was never found,
@@ -141,7 +156,9 @@ Every tool call is recorded as an `AuditEntry`: claim id, tool, arguments, a sho
 start time. **Arguments hold ids, dates, numbers and the length of any free text, never text.** A search query is
 recorded as `[text:43 chars]`; the model's rationale likewise; a value that is not shaped like a policy number is
 recorded as `[invalid:N chars]`. A result is recorded as counts and ids ("3 clauses: TM-PW-CC-2026/4.1, ...").
-Tests assert that claimant names and description text never appear in an entry.
+Tests assert that claimant names and description text never appear in an entry. Human decisions (approved, rejected,
+submitted, submit_failed) are recorded in the same trail with the actor's object id, role and route
+([ADR 0009](0009-identity-roles-and-segregation-of-duties.md)); rows have deterministic keys and are upserted.
 
 The pipeline and the API are separate processes, so the trail **travels in the hand-off message** (`ProposedClaim`)
 and the **API stores it** when it accepts the claim, in an `IAuditLog`: in memory locally, Azure Table Storage when
@@ -150,7 +167,8 @@ and the **API stores it** when it accepts the claim, in an `IAuditLog`: in memor
 returns it. A redelivered message does not store the trail twice, because the claim already exists.
 
 The trail is part of the message, so on Azure it passes through Service Bus. That is acceptable because it holds
-no personal data by construction, and it keeps one writer to the audit store. The alternative, the Function
+no names, addresses or free text (it is pseudonymised, not free of personal data: policy numbers, loss dates, amounts and
+the actor's object id are pseudonymous personal data under UK GDPR, and the audit store is classified accordingly), and it keeps one writer to the audit store. The alternative, the Function
 writing to the table directly, is a one-line change to `ClaimTools` if the customer wants the audit written before
 the hand-off.
 
@@ -190,7 +208,7 @@ Costs and risks:
 - **Agent Framework moves fast** (28 minor releases in seven months, ADR 0004). The version is pinned, and the
   scripted-client tests are the early warning when an upgrade changes how tools are invoked.
 - **The duplicate check reads two stores over HTTP**, the legacy system and the API's `GET /claims/history`. The
-  history endpoint has no authentication today, like the rest of the API (Milestone 6).
+  history endpoint now needs an app-only token with the `Intake.ReadHistory` role (Milestone 6a).
 - **Dates matter.** The notification check compares the loss date with the date the claim reached us. The sample
   documents are dated around 14 November 2026, so running them much later makes the "clean" ones late.
 

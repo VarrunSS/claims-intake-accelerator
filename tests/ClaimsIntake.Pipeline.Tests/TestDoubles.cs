@@ -37,6 +37,9 @@ internal sealed class FakePolicyLookup(params PolicyReference[] policies) : IPol
         new PolicyReference("TM-CP-100008", "Ashdown Veterinary Group", new(2026, 1, 15), new(2027, 1, 14), "TM-PW-CC-2026", 500m),
         new PolicyReference("TM-CP-100009", "Greyfriars Bookbinders", new(2025, 12, 1), new(2026, 11, 30), "TM-PW-OF-2026", 100m));
 
+    public PolicyReference? Find(string policyNumber) =>
+        policies.FirstOrDefault(p => p.Number.Equals(policyNumber, StringComparison.OrdinalIgnoreCase));
+
     public Task<PolicyReference?> FindAsync(string policyNumber, CancellationToken cancellationToken)
     {
         Lookups.Add(policyNumber);

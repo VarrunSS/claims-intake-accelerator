@@ -43,7 +43,7 @@ public class IntakeTests
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions);
+        var response = await client.PostIntakeAsync(Proposed());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var summary = await response.Content.ReadFromJsonAsync<ClaimSummary>(Json);
@@ -68,8 +68,8 @@ public class IntakeTests
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
 
-        var first = await client.PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions);
-        var second = await client.PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions);
+        var first = await client.PostIntakeAsync(Proposed());
+        var second = await client.PostIntakeAsync(Proposed());
 
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
@@ -84,11 +84,11 @@ public class IntakeTests
     {
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
-        var created = await (await client.PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions))
+        var created = await (await client.PostIntakeAsync(Proposed()))
             .Content.ReadFromJsonAsync<ClaimSummary>(Json);
-        await client.PostAsJsonAsync($"/claims/{created!.Id}/reject", new RejectRequest("a.patel", "Not covered."));
+        await client.PostAsJsonAsync($"/claims/{created!.Id}/reject", new RejectRequest("Not covered."));
 
-        await client.PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions);
+        await client.PostIntakeAsync(Proposed());
 
         var detail = await client.GetFromJsonAsync<ClaimDetail>($"/claims/{created.Id}", Json);
         Assert.Equal(ClaimStatus.Rejected, detail!.Status);
@@ -107,7 +107,7 @@ public class IntakeTests
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsync("/intake/claims", new StringContent(body, Encoding.UTF8, "application/json"));
+        var response = await client.PostIntakeAsync(new StringContent(body, Encoding.UTF8, "application/json"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var all = await client.GetFromJsonAsync<List<ClaimSummary>>("/claims?status=all", Json);
@@ -119,7 +119,7 @@ public class IntakeTests
     {
         using var factory = new ApiFactory().WithWebHostBuilder(b => b.UseSetting("Intake:HttpEndpoint:Enabled", "false"));
 
-        var response = await factory.CreateClient().PostAsJsonAsync("/intake/claims", Proposed(), ProposedClaim.JsonOptions);
+        var response = await factory.CreateClient().PostIntakeAsync(Proposed());
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -171,20 +171,39 @@ public class IntakeTests
     }
 
     [Fact]
-    public async Task Claims_beyond_the_size_limits_are_invalid()
+    public async Task Claims_beyond_the_shape_limits_are_invalid()
     {
         var service = Service();
-        var tooManyPages = Proposed(pages: ClaimIntakeService.MaxPages + 1);
         var hugeValue = Proposed() with
         {
-            Fields = [new ExtractedField(ClaimFields.PolicyNumber, new string('x', ClaimIntakeService.MaxValueLength + 1), 0.9)],
+            Fields = [new ExtractedField(ClaimFields.PolicyNumber, new string('x', IntakeLimits.MaxValueLength + 1), 0.9)],
         };
-        var hugeText = Proposed() with { SourcePages = [new string('x', ClaimIntakeService.MaxTotalCharacters + 1)] };
-        var longId = Proposed(new string('d', ClaimIntakeService.MaxDocumentIdLength + 1));
+        var longId = Proposed(new string('d', IntakeLimits.MaxDocumentIdLength + 1));
 
-        foreach (var claim in new[] { tooManyPages, hugeValue, hugeText, longId })
+        foreach (var claim in new[] { hugeValue, longId })
         {
             Assert.Equal(IntakeOutcome.Invalid, (await service.AcceptAsync(claim, CancellationToken.None)).Outcome);
+        }
+    }
+
+    [Fact]
+    public async Task A_101_page_or_over_long_document_is_accepted_cut_down_with_a_blocking_issue_so_it_is_never_lost()
+    {
+        var repository = new InMemoryClaimRepository();
+        var service = Service(repository);
+        var tooManyPages = Proposed(pages: IntakeLimits.MaxPages + 1);
+        var hugeText = Proposed("inbox/huge.pdf") with { SourcePages = [new string('x', IntakeLimits.MaxTotalCharacters + 1)] };
+
+        foreach (var claim in new[] { tooManyPages, hugeText })
+        {
+            var result = await service.AcceptAsync(claim, CancellationToken.None);
+
+            Assert.Equal(IntakeOutcome.Accepted, result.Outcome);
+            Assert.True(result.Claim!.HasBlockingIssues);
+            Assert.Contains(result.Claim.Issues, i => i.Code == IssueCode.DocumentTooLarge);
+            Assert.Equal(ClaimsIntake.Domain.Assessment.ReviewRoute.SeniorReview, result.Claim.Assessment?.Route);
+            Assert.True(result.Claim.SourcePages.Count <= IntakeLimits.MaxPages);
+            Assert.True(result.Claim.SourcePages.Sum(p => (long)p.Length) <= IntakeLimits.MaxTotalCharacters);
         }
     }
 
@@ -243,7 +262,7 @@ public class CorsTests
     [Fact]
     public async Task Outside_development_no_origin_is_allowed()
     {
-        using var factory = new ApiFactory();
+        using var factory = new ApiFactory { Environment = "Testing" };
 
         var response = await Preflight(factory, "http://localhost:4200");
 

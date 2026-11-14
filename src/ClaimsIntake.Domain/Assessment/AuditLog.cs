@@ -13,6 +13,9 @@ namespace ClaimsIntake.Domain.Assessment;
 /// <param name="DurationMs">How long the call took.</param>
 /// <param name="Timestamp">When the call started.</param>
 /// <param name="Succeeded">False when the tool threw. The summary then holds the exception type only.</param>
+/// <param name="Key">A deterministic discriminator for the entry within its claim and tick, such as <c>t003</c> for the fourth
+/// tool call or <c>d-approved</c> for a decision. Writing the same entry twice (a redelivered message, a retried approval)
+/// replaces it instead of adding a second. Null means the key is derived from the entry's content.</param>
 public sealed record AuditEntry(
     Guid ClaimId,
     string Tool,
@@ -20,9 +23,20 @@ public sealed record AuditEntry(
     string ResultSummary,
     double DurationMs,
     DateTimeOffset Timestamp,
-    bool Succeeded = true);
+    bool Succeeded = true,
+    string? Key = null)
+{
+    /// <summary>The row key: ticks first so entries sort by time, then the discriminator. Same entry, same key, always.</summary>
+    public string RowKey => $"{Timestamp.UtcTicks:D19}-{Key ?? ContentKey()}";
 
-/// <summary>Where the audit trail of tool calls is kept.</summary>
+    private string ContentKey()
+    {
+        var text = $"{Tool}|{string.Join(",", Arguments.OrderBy(a => a.Key, StringComparer.Ordinal).Select(a => $"{a.Key}={a.Value}"))}|{ResultSummary}|{Succeeded}";
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..8].ToLowerInvariant();
+    }
+}
+
+/// <summary>Where the audit trail of a claim is kept: its tool calls and the human decisions. Appending an entry that has the same row key replaces it.</summary>
 public interface IAuditLog
 {
     Task AppendAsync(AuditEntry entry, CancellationToken cancellationToken);
@@ -34,15 +48,16 @@ public interface IAuditLog
 /// <summary>Keeps the audit trail in memory. The local default; Azure uses Table Storage.</summary>
 public sealed class InMemoryAuditLog : IAuditLog
 {
-    private readonly ConcurrentDictionary<Guid, List<AuditEntry>> _entries = new();
+    // Keyed by row key, so writing the same entry again replaces it (an upsert), as the Table Storage log does.
+    private readonly ConcurrentDictionary<Guid, SortedDictionary<string, AuditEntry>> _entries = new();
 
     public Task AppendAsync(AuditEntry entry, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        var list = _entries.GetOrAdd(entry.ClaimId, _ => []);
-        lock (list)
+        var rows = _entries.GetOrAdd(entry.ClaimId, _ => new SortedDictionary<string, AuditEntry>(StringComparer.Ordinal));
+        lock (rows)
         {
-            list.Add(entry);
+            rows[entry.RowKey] = entry;
         }
 
         return Task.CompletedTask;
@@ -50,15 +65,14 @@ public sealed class InMemoryAuditLog : IAuditLog
 
     public Task<IReadOnlyList<AuditEntry>> ForClaimAsync(Guid claimId, CancellationToken cancellationToken)
     {
-        if (!_entries.TryGetValue(claimId, out var list))
+        if (!_entries.TryGetValue(claimId, out var rows))
         {
             return Task.FromResult<IReadOnlyList<AuditEntry>>([]);
         }
 
-        lock (list)
+        lock (rows)
         {
-            // OrderBy is stable, so calls that started in the same tick keep the order they were recorded in.
-            return Task.FromResult<IReadOnlyList<AuditEntry>>([.. list.OrderBy(e => e.Timestamp)]);
+            return Task.FromResult<IReadOnlyList<AuditEntry>>([.. rows.Values]);
         }
     }
 }

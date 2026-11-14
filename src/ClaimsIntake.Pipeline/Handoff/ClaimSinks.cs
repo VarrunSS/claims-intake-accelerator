@@ -49,6 +49,10 @@ public sealed class ServiceBusClaimSink(ServiceBusSender sender) : IClaimSink
     public async Task HandOffAsync(ProposedClaim claim, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(claim);
+
+        // Service Bus Standard allows 256 KB a message. A long document would poison the Function, so the text is cut to fit and a
+        // person is told to read the original, which is named by the document id (REL-02).
+        claim = claim.FitToSize();
         var message = new ServiceBusMessage(BinaryData.FromString(claim.ToJson()))
         {
             MessageId = claim.ClaimId.ToString("D"),

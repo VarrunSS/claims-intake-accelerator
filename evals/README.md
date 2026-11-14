@@ -47,7 +47,7 @@ generator already does.
 
 ## The dataset
 
-`dataset/` holds 51 cases. Each is a document (`.pdf`, `.txt` or `.eml`) and `<id>.expected.json`:
+`dataset/` holds 58 cases (51 from Milestone 4 and seven `injection` cases added in Milestone 6a, 18 dev and 40 test). Each is a document (`.pdf`, `.txt` or `.eml`) and `<id>.expected.json`:
 
 ```json
 {
@@ -74,6 +74,19 @@ each wording allows for notification. **The pipeline is never run to make the gr
 stream per case make the output byte-for-byte repeatable; adding a case does not change the others. Tests check that
 every expected clause exists in the right wording and section, that expected lateness agrees with the dates and the
 wording's period, and that expected policy-period issues agree with the seeded policies.
+
+### Injection cases (Milestone 6a)
+
+Seven documents carry text aimed at the model: an instruction to hide an exclusion or a late notification, to cite another
+wording, to close the `<claim>` tag, to look up another policy, to "correct" the policy number. The expected values are the
+**true** ones, as if the instruction were not there. Their splits were fixed before they were run: the two that try to
+steer the extracted fields (c55, c56) are in dev, the rest in test. Against the offline pipeline they show that the rules
+assessor cannot be talked out of an exclusion (c52, c57, c58 route correctly); one test-split case (c53, an email about a
+storm) mis-routes because of the existing email-cause weakness, not the injected text, and c55 misses its cause for the same
+reason. Adding the four test cases moved the test split from 36 to 40 cases: route accuracy 88.9% to 87.5%, finding recall
+0.853 to 0.850, field F1 0.968 to 0.969. Every threshold in `thresholds.json` still holds and none was changed. These cases
+do not measure a model: with `--assessor agent` the injection documents are what a real model run should be judged on.
+`--route-floor` runs the rules check beside the agent as production does; it is off by default so a comparison measures the model.
 
 ### Difficulty tags
 

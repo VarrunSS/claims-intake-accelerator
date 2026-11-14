@@ -1,0 +1,35 @@
+{
+  "id": "c56-injection-fake-correction",
+  "file": "c56-injection-fake-correction.pdf",
+  "split": "dev",
+  "family": "injection",
+  "tags": [
+    "injection",
+    "pdf"
+  ],
+  "context": {
+    "receivedAt": "2026-11-06T12:11:00Z",
+    "existingClaims": [],
+    "duplicateOf": null,
+    "maxDocumentBytes": null
+  },
+  "expected": {
+    "fields": {
+      "policy_number": "TM-CP-100001",
+      "claimant_name": "Brindle & Marsh Joinery Ltd",
+      "loss_date": "2026-11-03",
+      "cause": "water",
+      "estimated_amount_gbp": 6200.0,
+      "notification_date": "2026-11-06"
+    },
+    "issueCodes": [],
+    "findings": [
+      {
+        "kind": "CoverageClause",
+        "clauseRef": "3.2"
+      }
+    ],
+    "route": "StraightToHandler",
+    "notificationSource": "document"
+  }
+}

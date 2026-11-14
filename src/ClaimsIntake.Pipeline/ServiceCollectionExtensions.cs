@@ -12,6 +12,7 @@ using ClaimsIntake.Pipeline.Handoff;
 using ClaimsIntake.Pipeline.Legacy;
 using ClaimsIntake.Pipeline.Quality;
 using ClaimsIntake.Pipeline.Text;
+using ClaimsIntake.Security;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,15 +93,28 @@ public static class ServiceCollectionExtensions
         }
 
         var legacy = BaseAddress(section, "Legacy:BaseUrl", "http://localhost:5200/");
-        services.AddHttpClient<IPolicyLookup, LegacyPolicyLookup>(client => client.BaseAddress = legacy)
-            .AddStandardResilienceHandler();
+        // Calls to other services carry an app-only token (SEC-05, SEC-06): Intake:Legacy:Scope / Intake:Api:Scope on Azure (the
+        // managed identity), or a dev persona locally (Intake:Legacy:DevPersona, Development only). The auth handler is added
+        // after the resilience handler so every retry carries a token.
+        var legacyScope = Optional(section, "Legacy:Scope");
+        var legacyPersona = Optional(section, "Legacy:DevPersona");
+        var apiScope = Optional(section, "Api:Scope");
+        var apiPersona = Optional(section, "Api:DevPersona");
+
+        var policyClient = services.AddHttpClient<IPolicyLookup, LegacyPolicyLookup>(client => client.BaseAddress = legacy);
+        policyClient.AddStandardResilienceHandler();
+        policyClient.AddServiceAuthentication(legacyScope, legacyPersona);
 
         // check_duplicate reads the legacy system and, when the API's address is known, the review store.
-        services.AddHttpClient<LegacyExistingClaims>(client => client.BaseAddress = legacy).AddStandardResilienceHandler();
+        var legacyClaimsClient = services.AddHttpClient<LegacyExistingClaims>(client => client.BaseAddress = legacy);
+        legacyClaimsClient.AddStandardResilienceHandler();
+        legacyClaimsClient.AddServiceAuthentication(legacyScope, legacyPersona);
         var apiAddress = sink == "Http" || Optional(section, "Api:BaseUrl") is not null ? BaseAddress(section, "Api:BaseUrl", "http://localhost:5100/") : null;
         if (apiAddress is not null)
         {
-            services.AddHttpClient<ReviewStoreExistingClaims>(client => client.BaseAddress = apiAddress).AddStandardResilienceHandler();
+            var historyClient = services.AddHttpClient<ReviewStoreExistingClaims>(client => client.BaseAddress = apiAddress);
+            historyClient.AddStandardResilienceHandler();
+            historyClient.AddServiceAuthentication(apiScope, apiPersona);
         }
 
         services.AddSingleton<IExistingClaims>(sp => new CompositeExistingClaims(apiAddress is null
@@ -135,7 +149,11 @@ public static class ServiceCollectionExtensions
             case "Agent":
                 services.AddSingleton<IClaimAssessor>(sp => new AgentClaimAssessor(
                     sp.GetRequiredService<IChatClient>(), PromptLibrary.Get(PromptLibrary.Assessment, Optional(section, "PromptVersion"))));
-                services.AddSingleton<AssessmentRunner>();
+                // The agent runs with the deterministic rules check beside it as a route floor (AI-02).
+                services.AddSingleton(sp => new AssessmentRunner(
+                    sp.GetRequiredService<IClaimAssessor>(), sp.GetRequiredService<IPolicyLookup>(), sp.GetRequiredService<IPolicyWordingSearch>(),
+                    sp.GetRequiredService<IExistingClaims>(), sp.GetRequiredService<TimeProvider>(),
+                    sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AssessmentRunner>>(), new RuleBasedClaimAssessor()));
                 break;
         }
 
@@ -144,8 +162,9 @@ public static class ServiceCollectionExtensions
             case "Http":
                 var api = BaseAddress(section, "Api:BaseUrl", "http://localhost:5100/");
                 // Safe to retry: the API recognises a document it has already seen.
-                services.AddHttpClient<IClaimSink, HttpClaimSink>(client => client.BaseAddress = api)
-                    .AddStandardResilienceHandler();
+                var sinkClient = services.AddHttpClient<IClaimSink, HttpClaimSink>(client => client.BaseAddress = api);
+                sinkClient.AddStandardResilienceHandler();
+                sinkClient.AddServiceAuthentication(apiScope, apiPersona);
                 break;
             default:
                 var ns = Required(section, "ServiceBus:FullyQualifiedNamespace", "Intake:Sink is ServiceBus");
@@ -159,13 +178,14 @@ public static class ServiceCollectionExtensions
         // Input-quality checks (ADR 0007). Intake:Quality:MaxDocumentBytes, MinTextCharacters and MinClaimTerms override the defaults.
         var quality = new InputQualityOptions();
         section.GetSection("Quality").Bind(quality);
+        services.TryAddSingleton<IPromptAttackDetector, NoOpPromptAttackDetector>();
         services.AddSingleton<IDocumentHashStore, InMemoryDocumentHashStore>();
         services.AddSingleton(sp => InputQualityGate.CreateDefault(quality, sp.GetRequiredService<IDocumentHashStore>()));
 
         services.AddSingleton(sp => new ClaimIntakePipeline(
             sp.GetRequiredService<IDocumentTextExtractor>(), sp.GetRequiredService<IClaimExtractor>(), sp.GetRequiredService<IPolicyLookup>(),
             sp.GetRequiredService<IClaimSink>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>(), sp.GetRequiredService<InputQualityGate>()));
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaimIntakePipeline>>(), sp.GetService<AssessmentRunner>(), sp.GetRequiredService<InputQualityGate>(), sp.GetService<IPromptAttackDetector>()));
         return services;
     }
 

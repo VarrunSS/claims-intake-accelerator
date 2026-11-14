@@ -90,7 +90,8 @@ public class InputQualityTests
         var finding = await Run(check, Doc("copy.txt", bytes));
 
         Assert.Equal(IssueCode.DuplicateDocument, finding!.Code);
-        Assert.Contains("inbox/a.txt", finding.Message);
+        Assert.DoesNotContain("a.txt", finding.Message); // The first document's name is not repeated (PII-01); its claim id is.
+        Assert.Contains(ClaimsIntake.Domain.Intake.ClaimIds.ForDocument("inbox/a.txt").ToString("D"), finding.Message);
         Assert.Null(await Run(check, Doc("other.txt", Encoding.UTF8.GetBytes("a different file"))));
     }
 

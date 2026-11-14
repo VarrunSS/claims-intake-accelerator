@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using ClaimsIntake.Domain.Telemetry;
 using ClaimsIntake.Pipeline;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -20,7 +21,17 @@ builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService("claims-intake-watcher"))
     .WithTracing(tracing =>
     {
-        tracing.AddSource(PipelineTelemetry.SourceName).AddHttpClientInstrumentation();
+        tracing.AddSource(PipelineTelemetry.SourceName).AddHttpClientInstrumentation(options =>
+        {
+            // The route template, not the raw URL: a policy number must not reach a span (PII-02).
+            options.EnrichWithHttpRequestMessage = (activity, request) =>
+                UrlScrubber.Scrub(activity, request.RequestUri?.Scheme, request.RequestUri?.Host, request.RequestUri?.Port, request.RequestUri?.AbsolutePath);
+            options.EnrichWithHttpResponseMessage = (activity, response) =>
+            {
+                var uri = response.RequestMessage?.RequestUri;
+                UrlScrubber.Scrub(activity, uri?.Scheme, uri?.Host, uri?.Port, uri?.AbsolutePath);
+            };
+        });
         switch (exporter)
         {
             case "console":

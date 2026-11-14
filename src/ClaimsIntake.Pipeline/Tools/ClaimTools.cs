@@ -19,8 +19,11 @@ public static class ToolNames
     public const string ProposeClaim = "propose_claim";
 }
 
-/// <summary>What <c>lookup_policy</c> tells the model about a policy.</summary>
-public sealed record PolicyInfo(string PolicyNumber, string InsuredName, string PeriodStart, string PeriodEnd, string? WordingId, decimal? ExcessGbp);
+/// <summary>
+/// What <c>lookup_policy</c> tells the model about a policy. There is deliberately no insured name: the assessment does not
+/// need it, and a name in a tool result can be copied into a finding that a handler reads (AI-06).
+/// </summary>
+public sealed record PolicyInfo(string PolicyNumber, string PeriodStart, string PeriodEnd, string? WordingId, decimal? ExcessGbp);
 
 /// <summary>An existing claim that looks like the one being assessed.</summary>
 public sealed record DuplicateMatch(string Reference, string Source, string? LossDate, decimal? AmountGbp, string Status);
@@ -32,6 +35,26 @@ public sealed record DuplicateResult(bool IsPossibleDuplicate, IReadOnlyList<Dup
 public sealed record ClaimProposal(string PolicyNumber, string LossDate, decimal? AmountGbp, string Route, int RationaleLength);
 
 public sealed record ProposalAck(bool Recorded, string Status, string Note);
+
+/// <summary>
+/// What the code, not the model, fixes for one assessment: the claim's own policy number and the wording that policy is written on.
+/// They come from the pipeline's own policy lookup (AI-01, AI-06). The model cannot choose another.
+/// </summary>
+/// <param name="PolicyNumber">The claim's policy number. A tool call about any other number is refused.</param>
+/// <param name="WordingId">The wording the claim's policy is written on, or null when the policy is unknown. With null, a wording search is refused.</param>
+public sealed record ToolBinding(string? PolicyNumber, string? WordingId)
+{
+    public static ToolBinding Unbound { get; } = new(null, null);
+
+    public bool Matches(string? policyNumber) =>
+        PolicyNumber is not null && string.Equals(PolicyNumber.Trim(), policyNumber?.Trim(), StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>A tool call asked for something outside this claim: another policy, another wording. It is refused and recorded.</summary>
+public sealed class ToolRefusedException(string message) : InvalidOperationException(message);
+
+/// <summary>The assessment made more tool calls than <see cref="ClaimTools.MaxToolCalls"/>. The assessor fails and the claim goes to senior review (AI-05).</summary>
+public sealed class ToolBudgetExceededException() : InvalidOperationException("The assessment made too many tool calls.");
 
 /// <summary>
 /// The tools the assessment can use, as plain C# methods with no framework in them: unit-tested directly and
@@ -47,8 +70,16 @@ public sealed partial class ClaimTools(
     IPolicyLookup policies,
     IPolicyWordingSearch wording,
     IExistingClaims existingClaims,
-    TimeProvider time)
+    TimeProvider time,
+    ToolBinding? binding = null)
 {
+    /// <summary>The most tool calls one assessment may make. Past it every call fails and the assessment is abandoned (AI-05).</summary>
+    public const int MaxToolCalls = 24;
+
+    private readonly ToolBinding _binding = binding ?? ToolBinding.Unbound;
+    private int _calls;
+    private int _refusals;
+
     /// <summary>Two amounts within this fraction of the larger one count as similar.</summary>
     public const decimal AmountTolerance = 0.10m;
 
@@ -62,6 +93,15 @@ public sealed partial class ClaimTools(
     private readonly List<ClaimProposal> _proposals = [];
 
     public Guid ClaimId => claimId;
+
+    /// <summary>The wording this assessment is bound to, or null when the policy is unknown.</summary>
+    public string? BoundWordingId => _binding.WordingId;
+
+    /// <summary>True once a call was refused for going over <see cref="MaxToolCalls"/>. The framework swallows a tool's exception, so the assessor checks this flag.</summary>
+    public bool BudgetExceeded { get { lock (_gate) { return _calls > MaxToolCalls; } } }
+
+    /// <summary>How many calls were refused for asking about another policy or wording. A sign the document is steering the model.</summary>
+    public int Refusals { get { lock (_gate) { return _refusals; } } }
 
     /// <summary>Every call made so far, in order.</summary>
     public IReadOnlyList<AuditEntry> AuditTrail
@@ -118,18 +158,22 @@ public sealed partial class ClaimTools(
         var valid = PolicyNumberFormat().IsMatch(policyNumber ?? "");
         return Run(ToolNames.LookupPolicy,
             new() { ["policy_number"] = valid ? policyNumber!.Trim() : Redact(policyNumber) },
-            async () => valid ? await FindPolicy(policyNumber!.Trim(), cancellationToken) : null,
+            async () =>
+            {
+                RequireOwnPolicy(policyNumber);
+                return valid ? await FindPolicy(policyNumber!.Trim(), cancellationToken) : null;
+            },
             p => p is null ? "not found" : $"found; wording {p.WordingId ?? "unknown"}");
     }
 
-    [Description("Search the policy wordings for clauses that match some words, for example a cause of loss or the name of an exclusion. Returns the best matching clauses with their wording id, clause reference, heading and text. Cite clauses only as returned here.")]
+    [Description("Search this claim's policy wording for clauses that match some words, for example a cause of loss or the name of an exclusion. Returns the best matching clauses with their wording id, clause reference, heading and text. Cite clauses only as returned here.")]
     public Task<IReadOnlyList<ClauseHit>> SearchPolicyWordingAsync(
         [Description("Words to look for, for example: flood inundation surface water.")] string query,
-        [Description("Limit the search to this wording id, taken from lookup_policy. Leave empty to search all wordings.")] string? wordingId = null,
         [Description("How many clauses to return, 1 to 10.")] int top = 5,
         CancellationToken cancellationToken = default)
     {
-        var id = string.IsNullOrWhiteSpace(wordingId) ? null : wordingId.Trim();
+        // The wording is fixed by the code from the claim's own policy. There is no parameter for the model to choose one (AI-01).
+        var id = _binding.WordingId;
         var limit = Math.Clamp(top, 1, MaxResults);
         var text = (query ?? "").Trim();
         if (text.Length > MaxQueryLength)
@@ -138,15 +182,20 @@ public sealed partial class ClaimTools(
         }
 
         return Run(ToolNames.SearchPolicyWording,
-            new() { ["query"] = $"[text:{text.Length} chars]", ["wording_id"] = id is null ? "(all)" : WordingIds.IsValid(id) ? id : Redact(id), ["top"] = limit.ToString(CultureInfo.InvariantCulture) },
+            new() { ["query"] = $"[text:{text.Length} chars]", ["wording_id"] = id is null ? "(none)" : WordingIds.IsValid(id) ? id : Redact(id), ["top"] = limit.ToString(CultureInfo.InvariantCulture) },
             async () =>
             {
+                if (id is null || !WordingIds.IsValid(id))
+                {
+                    throw new ToolRefusedException("This claim's policy has no known wording to search.");
+                }
+
                 if (text.Length == 0)
                 {
                     throw new ArgumentException("A query is required.");
                 }
 
-                var hits = await wording.SearchAsync(text, id, limit, cancellationToken);
+                IReadOnlyList<ClauseHit> hits = [.. (await wording.SearchAsync(text, id, limit, cancellationToken)).Where(h => string.Equals(h.WordingId, id, StringComparison.Ordinal))];
                 lock (_gate)
                 {
                     foreach (var hit in hits)
@@ -178,6 +227,7 @@ public sealed partial class ClaimTools(
             },
             async () =>
             {
+                RequireOwnPolicy(policyNumber);
                 if (!valid || !dateOk)
                 {
                     throw new ArgumentException("A policy number and a loss date (yyyy-MM-dd) are required.");
@@ -223,6 +273,7 @@ public sealed partial class ClaimTools(
             },
             () =>
             {
+                RequireOwnPolicy(policyNumber);
                 if (!valid || !routeOk)
                 {
                     throw new ArgumentException("A valid policy number and route are required.");
@@ -254,10 +305,26 @@ public sealed partial class ClaimTools(
         return policy is null
             ? null
             : new PolicyInfo(
-                policy.Number, policy.InsuredName,
+                policy.Number,
                 policy.PeriodStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 policy.PeriodEnd.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 policy.WordingId, policy.ExcessGbp);
+    }
+
+    /// <summary>Refuses a call about any policy but the claim's own, and counts the refusal.</summary>
+    private void RequireOwnPolicy(string? policyNumber)
+    {
+        if (_binding.Matches(policyNumber))
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _refusals++;
+        }
+
+        throw new ToolRefusedException("Only this claim's own policy can be used.");
     }
 
     private bool IsThisClaim(ExistingClaim c) => c.Source == "review" && c.Reference == claimId.ToString();
@@ -278,6 +345,14 @@ public sealed partial class ClaimTools(
 
     private async Task<T> Run<T>(string tool, Dictionary<string, string> arguments, Func<Task<T>> work, Func<T, string> summarise)
     {
+        lock (_gate)
+        {
+            if (++_calls > MaxToolCalls)
+            {
+                throw new ToolBudgetExceededException();
+            }
+        }
+
         var started = time.GetUtcNow();
         var clock = Stopwatch.GetTimestamp();
         using var activity = PipelineTelemetry.Source.StartActivity($"tool.{tool}");

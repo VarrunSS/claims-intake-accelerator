@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Starts the whole system locally: the legacy mock, the review API, the inbox watcher and the review UI.
+    Starts the whole system locally: the legacy mock, the review API, the inbox watcher and the review UI, with the dev sign-in.
 
 .DESCRIPTION
     Local mode (docs/adr/0005-local-development-mode.md). Needs the .NET 10 SDK, and Node.js for the UI.
@@ -61,7 +61,10 @@ function Wait-Healthy([string]$Name, [string]$Url, [int]$Seconds = 60) {
 }
 
 try {
+    # Development turns on the dev sign-in (ADR 0009): Authorization: Bearer dev-handler or dev-senior for a person, and the
+    # services use their own dev tokens between themselves. None of this works outside the Development environment.
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
+    $env:DOTNET_ENVIRONMENT = 'Development'   # The inbox watcher is a generic host, which reads this one.
     $env:Telemetry__Exporter = 'none'   # Set to console to see a span per pipeline stage.
 
     Start-Service 'legacy' 'dotnet' @('run', '--no-build', '--project', 'src/ClaimsIntake.Legacy', '--urls', 'http://localhost:5200') $root
@@ -86,7 +89,8 @@ try {
     Write-Host ''
     Write-Host 'Everything is running.'
     Write-Host '  Review UI : http://localhost:4200'
-    Write-Host '  Review API: http://localhost:5100/claims?status=all'
+    Write-Host '  Review API: http://localhost:5100/claims?status=all   (needs a token: curl -H "Authorization: Bearer dev-handler" ...)'
+    Write-Host '  Dev users : dev-handler (ClaimsHandler), dev-senior (SeniorHandler). Development only.'
     Write-Host '  Legacy    : http://localhost:5200/policies/TM-CP-100001'
     Write-Host "  Inbox     : $inbox"
     Write-Host '  Try       : Copy-Item samples/01-water-damage-clean.pdf local-inbox/'

@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace ClaimsIntake.Api.Tests;
 
-public class LegacyApiTests : IClassFixture<WebApplicationFactory<LegacyMarker>>
+public class LegacyApiTests : IClassFixture<LegacyFactory>
 {
-    private readonly WebApplicationFactory<LegacyMarker> _factory;
+    private readonly LegacyFactory _factory;
 
-    public LegacyApiTests(WebApplicationFactory<LegacyMarker> factory) => _factory = factory;
+    public LegacyApiTests(LegacyFactory factory) => _factory = factory;
 
     private static CreateClaimRequest Request(string policy = "TM-CP-100001", string description = "Burst pipe in the workshop.") =>
         new(policy, "Brindle & Marsh Joinery Ltd", new DateOnly(2026, 11, 3), description, 12_500m);
@@ -206,11 +206,11 @@ public class LegacyApiTests : IClassFixture<WebApplicationFactory<LegacyMarker>>
     }
 }
 
-public class LegacyPolicyWordingAndListTests : IClassFixture<WebApplicationFactory<LegacyMarker>>
+public class LegacyPolicyWordingAndListTests : IClassFixture<LegacyFactory>
 {
-    private readonly WebApplicationFactory<LegacyMarker> _factory;
+    private readonly LegacyFactory _factory;
 
-    public LegacyPolicyWordingAndListTests(WebApplicationFactory<LegacyMarker> factory) => _factory = factory;
+    public LegacyPolicyWordingAndListTests(LegacyFactory factory) => _factory = factory;
 
     private HttpClient NewClient() => _factory.WithWebHostBuilder(_ => { }).CreateClient();
 
@@ -235,11 +235,16 @@ public class LegacyPolicyWordingAndListTests : IClassFixture<WebApplicationFacto
             (await client.SendAsync(message)).EnsureSuccessStatusCode();
         }
 
-        var claims = await client.GetFromJsonAsync<List<LegacyClaim>>("/claims?policyNumber=tm-cp-100001");
+        var raw = await client.GetStringAsync("/claims?policyNumber=tm-cp-100001");
+        var claims = System.Text.Json.JsonSerializer.Deserialize<List<DuplicateCheckItem>>(raw, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
 
         var claim = Assert.Single(claims!);
         Assert.Equal(("TM-CP-100001", new DateOnly(2026, 11, 3), 12_500m), (claim.PolicyNumber, claim.LossDate, claim.EstimatedAmountGbp));
-        Assert.Empty((await client.GetFromJsonAsync<List<LegacyClaim>>("/claims?policyNumber=TM-CP-100003"))!);
+        // SEC-05: only what the duplicate check needs. No claimant name and no description.
+        Assert.DoesNotContain("Brindle", raw);
+        Assert.DoesNotContain("Burst pipe", raw);
+        Assert.DoesNotContain("claimantName", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty((await client.GetFromJsonAsync<List<DuplicateCheckItem>>("/claims?policyNumber=TM-CP-100003"))!);
     }
 
     [Theory]

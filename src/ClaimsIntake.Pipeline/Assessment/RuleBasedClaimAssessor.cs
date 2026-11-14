@@ -51,7 +51,7 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
         // 1. Cover: the insured peril that matches the cause of loss.
         if (cause is not null)
         {
-            var hits = await tools.SearchPolicyWordingAsync(cause.Query, policy.WordingId, 6, cancellationToken);
+            var hits = await tools.SearchPolicyWordingAsync(cause.Query, 6, cancellationToken);
             var peril = hits.FirstOrDefault(h => IsSection(h, "Insured perils") && h.Heading.Contains(cause.PerilHeading, StringComparison.OrdinalIgnoreCase));
             if (peril is not null)
             {
@@ -63,26 +63,26 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
         // 2. Exclusions: each one the description points to, confirmed by the clause the search returns.
         if (Flood.IsMatch(description))
         {
-            await AddExclusion(findings, tools, policy.WordingId, "flood inundation surface water rising groundwater", "Flood", "flood",
+            await AddExclusion(findings, tools, "flood inundation surface water rising groundwater", "Flood", "flood",
                 "The description mentions flooding and the wording excludes flood", cancellationToken);
         }
 
         if (WearAndTear.IsMatch(description))
         {
-            await AddExclusion(findings, tools, policy.WordingId, "wear and tear gradual deterioration corrosion", "Wear", "wear",
+            await AddExclusion(findings, tools, "wear and tear gradual deterioration corrosion", "Wear", "wear",
                 "The description suggests wear, corrosion or gradual deterioration", cancellationToken);
         }
 
         if (UnoccupiedDays(description) is { } days && days > UnoccupiedLimitDays && cause?.Key is "water" or "theft")
         {
-            await AddExclusion(findings, tools, policy.WordingId, "unoccupied buildings consecutive days", "Unoccupied", "unoccupied",
+            await AddExclusion(findings, tools, "unoccupied buildings consecutive days", "Unoccupied", "unoccupied",
                 $"The description says the premises were unoccupied for about {days} days", cancellationToken);
         }
 
         // 3. Notification period: read from the wording, not assumed.
         if (context.LossDate is { } lossDate)
         {
-            await CheckNotification(findings, notes, tools, policy.WordingId, lossDate, context.NotifiedOn, cancellationToken);
+            await CheckNotification(findings, notes, tools, lossDate, context.NotifiedOn, cancellationToken);
         }
 
         // 4. Duplicates.
@@ -112,10 +112,10 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
     }
 
     private static async Task AddExclusion(
-        List<CoverageFinding> findings, ClaimTools tools, string? wordingId, string query, string headingWord, string textWord,
+        List<CoverageFinding> findings, ClaimTools tools, string query, string headingWord, string textWord,
         string because, CancellationToken cancellationToken)
     {
-        var hits = await tools.SearchPolicyWordingAsync(query, wordingId, 5, cancellationToken);
+        var hits = await tools.SearchPolicyWordingAsync(query, 5, cancellationToken);
         var clause = hits.FirstOrDefault(h => IsSection(h, "Exclusions")
             && (h.Heading.Contains(headingWord, StringComparison.OrdinalIgnoreCase) || h.Text.Contains(textWord, StringComparison.OrdinalIgnoreCase)));
         if (clause is not null)
@@ -126,10 +126,10 @@ public sealed partial class RuleBasedClaimAssessor : IClaimAssessor
     }
 
     private static async Task CheckNotification(
-        List<CoverageFinding> findings, List<string> notes, ClaimTools tools, string? wordingId,
+        List<CoverageFinding> findings, List<string> notes, ClaimTools tools,
         DateOnly lossDate, DateOnly notifiedOn, CancellationToken cancellationToken)
     {
-        var hits = await tools.SearchPolicyWordingAsync("notification of claims notify days date of loss", wordingId, 5, cancellationToken);
+        var hits = await tools.SearchPolicyWordingAsync("notification of claims notify days date of loss", 5, cancellationToken);
         var clause = hits.FirstOrDefault(h => IsSection(h, "Conditions") && h.Heading.Contains("Notification", StringComparison.OrdinalIgnoreCase));
         if (clause is null || WithinDays.Match(clause.Text) is not { Success: true } m)
         {

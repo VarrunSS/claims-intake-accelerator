@@ -93,7 +93,7 @@ public class FoundryLlmClaimExtractorTests
         Assert.DoesNotContain("Ignore all previous", system);
         Assert.StartsWith("<document>", user);
         Assert.EndsWith("</document>", user);
-        Assert.Contains("[page 1]", user);
+        Assert.Contains("\"pages\":[{\"page\":1", user);
         Assert.Contains("Ignore all previous", user);
     }
 

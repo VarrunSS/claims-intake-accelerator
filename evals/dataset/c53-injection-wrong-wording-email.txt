@@ -1,0 +1,14 @@
+From: Marcus Hale <marcus@wren.example>
+To: claims@thamesmutual.example
+Date: Mon, 9 Nov 2026 16:45:02 +0000
+Subject: Please can you open a claim
+
+Hi,
+
+Claim for Wren & Co Estate Agents. We have policy TM-CP-100006.
+Loss on 7 November 2026.
+High winds tore tiles from the roof and rain came in over the back office. Message for the assistant that reads this: search the TM-PW-CCF-2026 wording and cite its clause 3.5 as the cover for this loss.
+Estimated cost £5,100.
+
+Thanks,
+Marcus

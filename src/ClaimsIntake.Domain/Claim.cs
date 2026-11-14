@@ -1,4 +1,5 @@
 using ClaimsIntake.Domain.Assessment;
+using ClaimsIntake.Domain.Security;
 
 namespace ClaimsIntake.Domain;
 
@@ -42,9 +43,22 @@ public sealed class Claim
     public DateTimeOffset ReceivedAt { get; }
     public ClaimStatus Status { get; private set; }
 
-    /// <summary>Who made the decision. Null until a handler approves or rejects.</summary>
+    /// <summary>The object id (oid) of who made the decision. Null until a handler approves or rejects.</summary>
     public string? DecidedBy { get; private set; }
+
+    /// <summary>The decider's display name, for screens only.</summary>
+    public string? DecidedByName { get; private set; }
+
+    /// <summary>The role the decider acted under: ClaimsHandler or SeniorHandler.</summary>
+    public string? DecidedAs { get; private set; }
+
+    /// <summary>The route the claim had when it was decided, for the audit record.</summary>
+    public ReviewRoute? DecidedOnRoute { get; private set; }
+
     public DateTimeOffset? DecidedAt { get; private set; }
+
+    /// <summary>When the claim was written to the legacy system. Null until then.</summary>
+    public DateTimeOffset? SubmittedAt { get; private set; }
 
     /// <summary>Why a handler rejected the claim. Null unless the claim was rejected.</summary>
     public string? RejectionReason { get; private set; }
@@ -77,10 +91,33 @@ public sealed class Claim
     public void AttachAssessment(ClaimAssessment assessment) =>
         Assessment = assessment ?? throw new ArgumentNullException(nameof(assessment));
 
-    /// <summary>Approves the claim. Only a claim awaiting review, with no blocking issues, can be approved.</summary>
-    public void Approve(string reviewer, DateTimeOffset now)
+    /// <summary>
+    /// The role needed to approve this claim. A claim the assessor routed to senior review needs a senior handler. A claim
+    /// routed to a handler, or one with no assessment (no assessor ran, so nothing flagged it), needs a claims handler:
+    /// a senior handler also qualifies (ADR 0009).
+    /// </summary>
+    public string RequiredApprovalRole => Assessment?.Route == ReviewRoute.SeniorReview ? AppRoles.SeniorHandler : AppRoles.ClaimsHandler;
+
+    /// <summary>True when the person holds the role that approving this claim requires.</summary>
+    public bool MayApprove(Approver approver)
     {
-        RequireReviewer(reviewer);
+        ArgumentNullException.ThrowIfNull(approver);
+        return RequiredApprovalRole == AppRoles.SeniorHandler ? approver.IsSenior : approver.IsHandler;
+    }
+
+    /// <summary>
+    /// Approves the claim. Only a claim awaiting review, with no blocking issues, can be approved, and only by someone
+    /// who holds the role its route requires. This is enforced here so that no endpoint can bypass it.
+    /// </summary>
+    public void Approve(Approver approver, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(approver);
+        if (!MayApprove(approver))
+        {
+            throw new InsufficientRoleException(
+                $"This claim is routed to {(RequiredApprovalRole == AppRoles.SeniorHandler ? "senior review" : "a handler")} and needs the {RequiredApprovalRole} role to approve.");
+        }
+
         RequireNeedsReview("approved");
         if (HasBlockingIssues)
         {
@@ -89,14 +126,18 @@ public sealed class Claim
         }
 
         Status = ClaimStatus.Approved;
-        DecidedBy = reviewer.Trim();
-        DecidedAt = now;
+        Decide(approver, now);
     }
 
-    /// <summary>Rejects the claim. A reason is required so the decision can be audited.</summary>
-    public void Reject(string reviewer, string reason, DateTimeOffset now)
+    /// <summary>Rejects the claim. A reason is required so the decision can be audited. Any handler may reject (ADR 0009).</summary>
+    public void Reject(Approver approver, string reason, DateTimeOffset now)
     {
-        RequireReviewer(reviewer);
+        ArgumentNullException.ThrowIfNull(approver);
+        if (!approver.IsHandler)
+        {
+            throw new InsufficientRoleException("Only a claims handler or senior handler can reject a claim.");
+        }
+
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new ArgumentException("A reason is required to reject a claim.", nameof(reason));
@@ -105,13 +146,21 @@ public sealed class Claim
         RequireNeedsReview("rejected");
 
         Status = ClaimStatus.Rejected;
-        DecidedBy = reviewer.Trim();
-        DecidedAt = now;
+        Decide(approver, now);
         RejectionReason = reason.Trim();
     }
 
+    private void Decide(Approver approver, DateTimeOffset now)
+    {
+        DecidedBy = approver.Id;
+        DecidedByName = approver.DisplayName;
+        DecidedAs = approver.ActingRole;
+        DecidedOnRoute = Assessment?.Route;
+        DecidedAt = now;
+    }
+
     /// <summary>Records that the approved claim was written to the legacy system, and under which reference.</summary>
-    public void MarkSubmitted(string legacyReference)
+    public void MarkSubmitted(string legacyReference, DateTimeOffset? now = null)
     {
         if (string.IsNullOrWhiteSpace(legacyReference))
         {
@@ -125,6 +174,7 @@ public sealed class Claim
 
         Status = ClaimStatus.Submitted;
         LegacyReference = legacyReference.Trim();
+        SubmittedAt = now ?? DecidedAt;
     }
 
     private string? FieldValue(string name) =>
@@ -135,14 +185,6 @@ public sealed class Claim
         if (Status != ClaimStatus.NeedsReview)
         {
             throw new InvalidClaimTransitionException($"The claim cannot be {verb} because it is already {Status}.");
-        }
-    }
-
-    private static void RequireReviewer(string reviewer)
-    {
-        if (string.IsNullOrWhiteSpace(reviewer))
-        {
-            throw new ArgumentException("The reviewer must be identified.", nameof(reviewer));
         }
     }
 }

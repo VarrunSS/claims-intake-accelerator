@@ -12,7 +12,7 @@ CI and infrastructure as code, with the work delivered in milestones.
 
 ## Status
 
-Milestones 1 to 5 are done. The rest is planned and not started. Everything runs locally with only the .NET
+Milestones 1 to 5 are done, and Milestone 6 part A (application security) is done. Part B (infrastructure, observability, supply chain) and Milestone 7 are not started. Everything runs locally with only the .NET
 SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been run** (see below).
 
 | # | Milestone | Status |
@@ -20,9 +20,9 @@ SDK (and Node for the UI); **the Azure paths of Milestones 2 and 3 have not been
 | 1 | Discovery and skeleton: docs, domain rules, review API, legacy mock, Function stub, Bicep, CI | **Done** |
 | 2 | Happy path: document in, extracted and validated claim in the Angular review UI, approval writes to the legacy system | **Done locally. Azure path compiled and unit-tested only, never run** |
 | 3 | RAG and legacy tools: policy wording search with citations, agent tools, coverage assessment, audit log | **Done locally. Azure path (AI Search, agent on a real model, Table Storage) compiled and unit-tested against fakes only, never run** |
-| 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, input-quality checks | **Done locally.** Local pipeline only, on 36 held-out synthetic claims: field F1 0.968, route accuracy 88.9%, citations 100% grounded (by construction), 41.7% auto-routable. **No real-model number exists yet** |
+| 4 | Evals and data quality: synthetic claims, scorer, eval gate in CI, input-quality checks | **Done locally.** Local pipeline only, on 40 held-out synthetic claims (36 before Milestone 6a added four prompt-injection cases): field F1 0.969, route accuracy 87.5%, citations 100% grounded (by construction), 37.5% auto-routable. **No real-model number exists yet** |
 | 5 | Model comparison: 2 to 3 Foundry models on accuracy, cost and latency, written up as an ADR | **Done as a harness, verified on scripted fakes only. Real models not run: no model has been measured, no model is recommended** |
-| 6 | Security and observability: split identities, PII redaction, threat model, App Insights workbook | Not started |
+| 6 | Security and observability. **Part A done offline:** Entra ID auth and app roles, segregation of duties, decision audit, agent hardening, service-to-service tokens, PII scrubbing, threat model ([ADR 0009](docs/adr/0009-identity-roles-and-segregation-of-duties.md)). **Part B not started:** split identities, IaC in CI, Azure Monitor, supply chain | **Part A done, never run against a real tenant** |
 | 7 | Packaging: demo, runbook, final README and measured results | Not started |
 
 **The infrastructure has not been deployed or validated.** `azd`, `az` and the Functions Core Tools were not
@@ -138,7 +138,7 @@ extractor, which flatters it ([evals/README.md](evals/README.md), [ADR 0007](doc
 
 | Piece | What it does |
 |---|---|
-| `evals/dataset/` | 51 synthetic messy claims with ground truth, tagged by difficulty (clean, email, `.eml`, missing fields, amounts in words, UK dates, policy typos, garbled layout, exclusions, late notification, duplicates, non-claims, unreadable files). Generated deterministically by `evals/generate_dataset.py`. Split into 15 `dev` (look at it, tune on it) and 36 `test` (held out). |
+| `evals/dataset/` | 58 synthetic messy claims with ground truth, tagged by difficulty (clean, email, `.eml`, missing fields, amounts in words, UK dates, policy typos, garbled layout, exclusions, late notification, duplicates, non-claims, unreadable files, and seven prompt-injection documents tagged `injection`). Generated deterministically by `evals/generate_dataset.py`. Split into 18 `dev` (look at it, tune on it) and 40 `test` (held out). The seven injection cases were added in Milestone 6a after the first 51, which are byte-identical. |
 | `evals/ClaimsIntake.Evals` | A .NET console that runs the real pipeline in process and writes `report.md` and `results.json`: field precision, recall and F1, issue and finding precision and recall, route accuracy and confusion matrix, citation groundedness, auto-routable rate, silent error rate, latency per stage, per-tag breakdown. Exits 1 below `evals/thresholds.json`. |
 | Input-quality checks | `IInputQualityCheck`: empty or near-empty text, not English or not a claim, oversized, password-protected or corrupt PDF, duplicate file hash. A failing document reaches the review queue as a claim with one blocking issue that says why. |
 | Date fix | The notification period is measured to the date the document states, otherwise to when it was received, never to the clock at processing time. The samples state a notification date, so the demo no longer drifts. |
@@ -174,14 +174,17 @@ for the UI. No Azure account, no keys, no Docker.
 
 ```bash
 dotnet build
-dotnet test            # Domain 79, API 113, Pipeline 332, Evals 143 (667 in all)
+dotnet test            # Domain 108, API 169, Pipeline 358, Evals 144 (779 in all)
 dotnet run --project evals/ClaimsIntake.Evals -- --split test --thresholds evals/thresholds.json   # the evaluation, offline
-cd ui && npm ci && npm test && npm run build    # UI: 35 tests, run headless in jsdom
+cd ui && npm ci && npm test && npm run build    # UI: 60 tests, run headless in jsdom
 ```
 
 ### Run the whole flow locally
 
-Four processes, in four terminals (or run `./scripts/run-local.ps1` on Windows to start them all):
+Four processes, in four terminals (or run `./scripts/run-local.ps1` on Windows to start them all). Set
+`ASPNETCORE_ENVIRONMENT=Development` (and `DOTNET_ENVIRONMENT=Development` for the watcher): that turns on the **dev sign-in**
+([ADR 0009](docs/adr/0009-identity-roles-and-segregation-of-duties.md)). It works only in Development. Every API call needs a
+token: `dev-handler` is a claims handler, `dev-senior` a senior handler.
 
 ```bash
 dotnet run --project src/ClaimsIntake.Legacy      # http://localhost:5200  mock claims system
@@ -194,7 +197,7 @@ Then drop documents into the inbox and open http://localhost:4200:
 
 ```bash
 cp samples/01-water-damage-clean.pdf samples/05-loss-outside-policy-period.pdf samples/06-email-fire.txt local-inbox/
-curl "http://localhost:5100/claims?status=all"
+curl -H "Authorization: Bearer dev-handler" "http://localhost:5100/claims?status=all"
 ```
 
 To see the coverage assessment, drop the clean sample and one that triggers exclusions, then read the claim and its
@@ -203,8 +206,8 @@ audit trail (each sample states its own notification date, so the result does no
 ```bash
 cp samples/01-water-damage-clean.pdf samples/09-flood-office-exclusion.pdf samples/10-unoccupied-late-notification.pdf local-inbox/
 cp samples/11-duplicate-water-damage-email.txt local-inbox/      # after 01 has been processed: a possible duplicate of it
-curl http://localhost:5100/claims/<id>          # "assessment": findings with cited clauses, route, notes
-curl http://localhost:5100/claims/<id>/audit    # every tool call, with redacted arguments
+curl -H "Authorization: Bearer dev-handler" http://localhost:5100/claims/<id>          # "assessment": findings with cited clauses, route, notes
+curl -H "Authorization: Bearer dev-handler" http://localhost:5100/claims/<id>/audit    # tool calls (redacted arguments) and every decision with its actor
 ```
 
 Sample 01 is covered under clause 3.2 and goes straight to a handler. Sample 09 cites the flood exclusion (4.1) of the
@@ -216,8 +219,11 @@ claim, checks the fields against the source text, and approves or rejects it. Ap
 error is refused. Approving a clean claim writes it to the legacy system and shows the legacy reference:
 
 ```bash
-curl -X POST http://localhost:5100/claims/<id>/approve -H "Content-Type: application/json" -d '{"reviewer":"a.patel"}'
+curl -X POST -H "Authorization: Bearer dev-handler" http://localhost:5100/claims/<id>/approve    # no body: the reviewer is the token
 ```
+
+A claim the assessor routed to senior review (sample 09 or 10) answers **403** to `dev-handler` and works for
+`dev-senior`. Without a token every route answers 401.
 
 Approve it again and you get the same reference back with an `Idempotent-Replay: true` header, and the legacy system
 still holds one claim. If the legacy system is down, the claim stays approved, the API answers 502, and approving
@@ -246,16 +252,16 @@ Run the review API (http://localhost:5100). To load four made-up claims for a de
 ```bash
 dotnet run --project src/ClaimsIntake.Api
 
-curl http://localhost:5100/claims                    # claims waiting for review, oldest first
-curl http://localhost:5100/claims/<id>               # one claim: fields, confidence, source, issues
-curl -X POST http://localhost:5100/claims/<id>/approve \
-     -H "Content-Type: application/json" -d '{"reviewer":"a.patel"}'
-curl -X POST http://localhost:5100/claims/<id>/reject \
-     -H "Content-Type: application/json" -d '{"reviewer":"a.patel","reason":"Duplicate claim"}'
+T="Authorization: Bearer dev-handler"            # or dev-senior
+curl -H "$T" http://localhost:5100/claims                    # claims waiting for review, oldest first
+curl -H "$T" http://localhost:5100/claims/<id>               # one claim: fields, confidence, source, issues
+curl -X POST -H "$T" http://localhost:5100/claims/<id>/approve
+curl -X POST -H "$T" -H "Content-Type: application/json" http://localhost:5100/claims/<id>/reject -d '{"reason":"Duplicate claim"}'
 curl http://localhost:5100/health/ready
 ```
 
-Run the mock legacy system (http://localhost:5200):
+Run the mock legacy system (http://localhost:5200). In Development it accepts the dev service tokens, so add
+`-H "Authorization: Bearer dev-app-api"` (write) or `dev-app-pipeline` (reads) to the calls below:
 
 ```bash
 dotnet run --project src/ClaimsIntake.Legacy
@@ -276,45 +282,66 @@ Coverage, as CI runs it: `dotnet test --collect:"XPlat Code Coverage"`.
 
 ## Security posture
 
-What is in place in Milestone 1, and what is not.
+What is in place, and where each claim is tested or why it is not. Milestone 6 part A added the first six items.
 
 In place:
 
+- **Authentication on every endpoint** except the health probes: Microsoft Entra ID JWT bearer through
+  Microsoft.Identity.Web, a fallback policy that requires a signed-in caller, no start-up without the Entra settings. Tests
+  send test-signed JWTs through the real validation pipeline: 401 without a token, for a wrong audience, an expired token or a
+  wrong key; 403 for a wrong role. ([ADR 0009](docs/adr/0009-identity-roles-and-segregation-of-duties.md))
+- **App roles and segregation of duties.** `ClaimsHandler` and `SeniorHandler`. A claim routed to senior review can be
+  approved only by a senior handler, enforced in the domain (`Claim.Approve`) and tested for every route and role pair and
+  end to end. The reviewer is the token's `oid`, never the body. Service identities use app-only roles
+  (`Claims.Write`, `Claims.Read`, `Policies.Read`, `Intake.ReadHistory`) and cannot act as handlers.
+- **Every decision is audited** (approved, rejected, submitted, submit failed) with the actor's `oid`, role and route,
+  with deterministic row keys and upserts, so a retry or redelivery cannot duplicate or lose one. Guardrail G1 is a test.
+- **Agent hardening.** The wording and policy number are bound in code (the model cannot choose another wording), the
+  citation guard rejects a clause from another wording, the rules assessor is a route floor the agent cannot lower, untrusted
+  text is JSON-encoded in the prompts, the model gets a 24-call budget and no insured name. Scripted-model tests for each
+  attack, and eval cases tagged `injection`.
+- **No silent loss, app-code part.** Shared limits live in the Domain; an over-long document or trail is cut and flagged for
+  a person instead of dead-lettered; the Service Bus hand-off is cut to under 200 KB; approve and reject share one per-claim gate.
+- **PII scrubbing.** Spans and logs use the claim id, never the blob name, and HTTP spans carry route templates, not raw paths.
+- **A dev sign-in that cannot exist outside Development.** Five layers, each tested (ADR 0009 section 7). The local hand-off
+  route exists only in Development and needs an app token.
 - **No keys or connection strings.** The Bicep gives one user-assigned managed identity scoped role
   assignments, turns off shared-key access on storage and local auth on Service Bus, and puts only resource
   names in application settings ([ADR 0003](docs/adr/0003-managed-identity-no-keys.md)).
 - **Human approval for writes.** The agent can only propose. `propose_claim` records a proposal in memory; the
-  tools are given no writer, so they cannot write (a test checks this). The domain model refuses to approve a claim that
-  has data-quality errors or has already been decided ([ADR 0002](docs/adr/0002-human-approval-for-writes.md)).
+  tools are given no writer, so they cannot write (a test checks this) ([ADR 0002](docs/adr/0002-human-approval-for-writes.md)).
 - **UK South only.** The Bicep `location` parameter allows only `uksouth`.
 - **Safe retries.** The legacy write needs an idempotency key. Reuse with a different body is refused. The API
-  uses the claim id as the key, serialises approvals per claim, and a repeated approval returns the first result.
-- **No document text in telemetry.** Spans and logs carry document and claim ids, stage names, durations,
-  counts and confidence, and exception types, never text or field values. Tests check this.
-- **Untrusted documents.** Document text goes to the model as data between delimiters with no tools, the reply is
-  validated against the document, and size limits apply at intake (10 MB per document) and on the hand-off.
+  uses the claim id as the key, and a repeated approval returns the first result.
+- **No document text in telemetry.** Spans and logs carry claim ids, stage names, durations, counts and confidence, and
+  exception types, never text or field values. Tests check this.
+- **Grounded citations.** A finding can only cite a clause the search returned in that run **from this claim's wording**, and
+  the clause text shown is the wording's ([ADR 0006](docs/adr/0006-policy-wording-rag.md)). Whether the clause means what the
+  model says is for the handler.
 - **Input handling.** Request bodies are validated and length-limited. Blob names are cleaned before logging.
-- **Defaults on the hosts.** HTTPS only, TLS 1.2 minimum, FTP off, basic publishing credentials off,
-  Key Vault with RBAC, soft delete and purge protection, storage with no public blob access.
+- **Defaults on the hosts.** HTTPS only, TLS 1.2 minimum, FTP off, Key Vault with RBAC, soft delete and purge protection,
+  storage with no public blob access. Basic publishing credentials are off on the two web apps but **not yet on the Function App** (INF-04).
 
-- **Grounded citations.** A coverage finding can only cite a clause that the wording search returned in that run, and
-  the clause text shown is the wording's ([ADR 0006](docs/adr/0006-policy-wording-rag.md)).
-- **Audit of every tool call**, with arguments reduced to ids, dates and lengths of free text, not claim text.
+Not in place (see the [review](docs/reviews/2026-11-architecture-security-review.md) and the [threat model](docs/threat-model.md)):
 
-Not yet in place (planned, mainly Milestone 6):
-
-- `POST /intake/claims` is off unless `Intake:HttpEndpoint:Enabled` is set, and has **no authentication**; it is for
-  local mode only ([ADR 0005](docs/adr/0005-local-development-mode.md)).
-- The review API has **no authentication**. The reviewer name comes from the request body. Entra ID sign-in and
-  roles come next. Do not expose the API as it stands.
-- The mock legacy system has no authentication either. It stands in for a system that would have its own.
-- One identity is shared by all three apps. It will be split by component.
-- No private endpoints or network restrictions. No Azure Policy. No PII redaction in telemetry (nothing logs
-  claim content today, but nothing enforces it yet). No threat model.
-- Application Insights still accepts connection-string ingestion.
+- **Never run against a real Entra ID tenant.** The app registrations in `infra/entra/` have never been applied.
+- **The infrastructure still has one identity shared by all three apps**, a public host for the API and the legacy mock, and
+  no private endpoints (part B: INF-01, INF-03).
+- **The review store is in memory**: a restart loses claims awaiting review (REL-01, Milestone 7).
+- Hidden text in a PDF is not detected (AI-04). Azure AI Content Safety Prompt Shields is not integrated (a no-op seam exists).
+- No rate limiting, request size limit per route, PDF page limit or file-type sniffing (item 10). No retention policy (PII-03).
+- Application Insights still accepts connection-string ingestion, and Azure Monitor export is not wired (part B).
+- The Event Grid trigger is not in the Bicep, so a deployed Function would never fire (REL-06, part B).
 - Nothing has been deployed, so none of the Azure configuration has been tested.
 
 ## What was not verified
+
+- **Milestone 6a, offline only:** Entra ID token validation, app-role and `idtyp` claims, the app-only token flow with
+  `DefaultAzureCredential`, the MSAL Angular sign-in (mocked unit tests and the build only), and the Entra app
+  registration manifests have never met a real tenant. Test tokens are signed with a symmetric test key and shaped like
+  Entra's. The agent hardening is proven with a scripted model, not a real one. The JSON-encoded extraction prompt has
+  not been tried with a real model: how well a model quotes verbatim from JSON-escaped text is unknown. The eval
+  `injection` cases measure the offline rules assessor, not a model. Prompt Shields was never run.
 
 - The Bicep has not been compiled with `az bicep build`, checked with `what-if`, or deployed. In particular,
   these are unconfirmed: .NET 10 on Flex Consumption (`dotnet-isolated`, `10.0`), `DOTNETCORE|10.0` on
@@ -345,21 +372,23 @@ Not yet in place (planned, mainly Milestone 6):
   documents or with a real model is unmeasured; the 50-claim evaluation set is Milestone 4.
 - The heuristic extractor was tuned on the eight synthetic samples in this repository, so its results on them
   flatter it.
-- The UI is tested in jsdom, and was looked at once in a real browser against the running API. It has no
+- The UI is tested in jsdom, and was looked at once in a real browser against the running API (before the Milestone 6a sign-in changes). It has no
   automated browser or accessibility test.
 - The Mermaid diagram was parsed by the Mermaid library but not viewed in a renderer.
 
 ## Repository layout
 
 ```
-.github/workflows/ci.yml   build, test with coverage; eval job commented out until Milestone 4
+.github/workflows/ci.yml   build, test with coverage, UI, evaluation gate
 docs/                      discovery, success metrics, architecture, ADRs
 infra/                     Bicep (main.bicep and modules), azd parameters
-src/                       Domain, Pipeline, Api, Legacy, Functions, Watcher, Ingestion
+src/                       Domain, Security, Security.AspNetCore, Pipeline, Api, Legacy, Functions, Watcher, Ingestion
+evals/                     evaluation harness, dataset generator and 58 synthetic cases
+infra/entra/               Entra app registration manifests (never applied)
 ui/                        Angular review UI
 samples/                   synthetic claim documents and their generator; policy-wordings/ holds the wordings
 scripts/                   run-local.ps1 starts everything locally
-tests/                     Domain.Tests, Pipeline.Tests, Api.Tests (API and legacy)
+tests/                     Domain.Tests, Pipeline.Tests, Api.Tests (API and legacy), Evals.Tests
 azure.yaml                 azd project definition
 ```
 

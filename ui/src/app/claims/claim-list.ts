@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../auth/auth.service';
 import { ClaimsService } from './claims.service';
 import { confidenceBand, confidenceLabel } from './helpers';
 import { ApiError, ClaimSummary } from './models';
@@ -83,6 +84,7 @@ import { ApiError, ClaimSummary } from './models';
 })
 export class ClaimList {
   private readonly service = inject(ClaimsService);
+  private readonly auth = inject(AuthService);
 
   protected readonly options = [
     { value: 'all', label: 'All claims' },
@@ -98,7 +100,11 @@ export class ClaimList {
   protected readonly status = signal('all');
 
   constructor() {
-    this.load('all');
+    // Runs once, then again whenever the signed-in identity changes.
+    effect(() => {
+      this.auth.session();
+      untracked(() => this.load(this.status()));
+    });
   }
 
   protected load(status: string): void {

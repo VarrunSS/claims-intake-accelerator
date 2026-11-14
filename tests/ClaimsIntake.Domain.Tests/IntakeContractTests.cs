@@ -158,8 +158,8 @@ public class AssessmentContractTests
 
         Assert.Equal(ClaimStatus.NeedsReview, claim.Status);
         Assert.Equal(ClaimsIntake.Domain.Assessment.ReviewRoute.SeniorReview, claim.Assessment!.Route);
-        Assert.False(claim.HasBlockingIssues); // A senior-review route is advice, not a blocking issue.
-        claim.Approve("a.patel", DateTimeOffset.UnixEpoch);
+        Assert.False(claim.HasBlockingIssues); // A senior-review route is advice, not a blocking issue. Only a senior handler may act on it.
+        claim.Approve(new ClaimsIntake.Domain.Security.Approver("oid-senior", "Senior", [ClaimsIntake.Domain.Security.AppRoles.SeniorHandler]), DateTimeOffset.UnixEpoch);
         Assert.Equal(ClaimStatus.Approved, claim.Status);
     }
 

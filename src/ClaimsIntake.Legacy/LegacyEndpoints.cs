@@ -1,3 +1,5 @@
+using ClaimsIntake.Security.AspNetCore;
+
 namespace ClaimsIntake.Legacy;
 
 public static class LegacyEndpoints
@@ -8,10 +10,10 @@ public static class LegacyEndpoints
 
     public static IEndpointRouteBuilder MapLegacyEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/policies/{number}", GetPolicy);
-        app.MapPost("/claims", CreateClaim);
-        app.MapGet("/claims/{reference}", GetClaim);
-        app.MapGet("/claims", ListClaims);
+        app.MapGet("/policies/{number}", GetPolicy).RequireAuthorization(Policies.PoliciesRead);
+        app.MapPost("/claims", CreateClaim).RequireAuthorization(Policies.ClaimsWrite);
+        app.MapGet("/claims/{reference}", GetClaim).RequireAuthorization(Policies.ClaimsRead);
+        app.MapGet("/claims", ListClaims).RequireAuthorization(Policies.ClaimsRead);
         return app;
     }
 
@@ -39,7 +41,8 @@ public static class LegacyEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["policyNumber"] = ["A policy number is required."] });
         }
 
-        return Results.Ok(claims.ForPolicy(policyNumber));
+        // Only what the duplicate check needs: no claimant name, no description.
+        return Results.Ok(claims.ForPolicy(policyNumber).Select(c => new DuplicateCheckItem(c.Reference, c.PolicyNumber, c.LossDate, c.EstimatedAmountGbp)));
     }
 
     private static IResult CreateClaim(
@@ -143,3 +146,6 @@ public static class LegacyEndpoints
         }
     }
 }
+
+/// <summary>What <c>GET /claims?policyNumber=</c> returns: the fields the duplicate check compares, and nothing personal.</summary>
+public sealed record DuplicateCheckItem(string Reference, string PolicyNumber, DateOnly LossDate, decimal? EstimatedAmountGbp);

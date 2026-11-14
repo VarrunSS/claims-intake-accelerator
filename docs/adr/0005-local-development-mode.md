@@ -57,9 +57,9 @@ JSON in both modes) and the intake rules the same as Azure. The only code that d
 
 - It is **off unless** `Intake:HttpEndpoint:Enabled` is `true`. `appsettings.Development.json` turns it on; the
   base `appsettings.json` and the Bicep do not, so a deployed API does not expose it.
-- It has **no authentication**. That is acceptable only because it is for a developer's machine and is
-  development-only. It is a Milestone 6 item to remove it or protect it if it ever has to exist outside local
-  mode. In Azure the hand-off is a Service Bus message, authorised by RBAC.
+- It is **mapped only in the Development environment** and needs an app-only token with the `Intake.Submit` role
+  (Milestone 6a, [ADR 0009](0009-identity-roles-and-segregation-of-duties.md)): a stray setting in Azure leaves it absent. Locally the watcher sends the
+  `dev-app-pipeline` dev token. In Azure the hand-off is a Service Bus message, authorised by RBAC.
 - The body is read with a size limit (8 MB), parsed defensively and checked for shape and size
   (`ClaimIntakeService.Check`). A body the domain types refuse is a 400, not a 500.
 - The claim id is derived from the document id, so a document handed over twice, by a retry or a redelivered

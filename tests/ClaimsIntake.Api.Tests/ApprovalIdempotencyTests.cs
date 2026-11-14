@@ -20,8 +20,8 @@ public class ApprovalIdempotencyTests
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private static Task<HttpResponseMessage> Approve(HttpClient client, Guid id, string reviewer = "a.patel") =>
-        client.PostAsJsonAsync($"/claims/{id}/approve", new ApproveRequest(reviewer));
+    private static Task<HttpResponseMessage> Approve(HttpClient client, Guid id) =>
+        client.PostAsJsonAsync($"/claims/{id}/approve", new ApproveRequest());
 
     private static async Task<ClaimDetail> Detail(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<ClaimDetail>(Json))!;
@@ -47,13 +47,14 @@ public class ApprovalIdempotencyTests
         var client = factory.CreateClient();
         var first = await Detail(await Approve(client, factory.Clean.Id));
 
-        var secondResponse = await Approve(client, factory.Clean.Id, reviewer: "someone.else");
+        var someoneElse = factory.CreateClient().WithBearer(TestAuth.Senior());
+        var secondResponse = await Approve(someoneElse, factory.Clean.Id);
         var second = await Detail(secondResponse);
 
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
         Assert.True(secondResponse.Headers.Contains("Idempotent-Replay"));
         Assert.Equal(first.LegacyReference, second.LegacyReference);
-        Assert.Equal("a.patel", second.DecidedBy); // The first decision stands.
+        Assert.Equal(TestAuth.HandlerOid, second.DecidedBy); // The first decision stands.
         Assert.Equal(1, factory.Legacy.Calls);
         Assert.Equal(1, factory.Legacy.Created);
     }
@@ -164,7 +165,7 @@ public class ApprovalIdempotencyTests
         var client = factory.CreateClient();
         await Approve(client, factory.Clean.Id);
 
-        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/reject", new RejectRequest("b.jones", "Changed my mind."));
+        var response = await client.PostAsJsonAsync($"/claims/{factory.Clean.Id}/reject", new RejectRequest("Changed my mind."));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(ClaimStatus.Submitted, factory.Clean.Status);

@@ -69,18 +69,26 @@ internal static class Assessing
         Guid? claimId = null,
         IPolicyLookup? policies = null,
         IPolicyWordingSearch? search = null,
-        IExistingClaims? existing = null) =>
-        new(claimId ?? Guid.NewGuid(), policies ?? FakePolicyLookup.Seeded(), search ?? Corpus.Search(),
-            existing ?? new FakeExistingClaims(), new FixedTimeProvider(TestTime.Now));
+        IExistingClaims? existing = null,
+        ToolBinding? binding = null,
+        AssessmentContext? context = null) =>
+        new(claimId ?? context?.ClaimId ?? Guid.NewGuid(), policies ?? FakePolicyLookup.Seeded(), search ?? Corpus.Search(),
+            existing ?? new FakeExistingClaims(), new FixedTimeProvider(TestTime.Now),
+            binding ?? (context is null ? Bound("TM-CP-100001") : new ToolBinding(context.PolicyNumber, context.Policy?.WordingId)));
+
+    /// <summary>The binding the pipeline would make for a seeded policy: its number and its wording.</summary>
+    public static ToolBinding Bound(string policyNumber) =>
+        new(policyNumber, FakePolicyLookup.Seeded().Find(policyNumber)?.WordingId);
 
     public static AssessmentRunner Runner(
         IClaimAssessor assessor,
         IPolicyLookup? policies = null,
         IPolicyWordingSearch? search = null,
         IExistingClaims? existing = null,
-        ILogger<AssessmentRunner>? logger = null) =>
+        ILogger<AssessmentRunner>? logger = null,
+        IClaimAssessor? routeFloor = null) =>
         new(assessor, policies ?? FakePolicyLookup.Seeded(), search ?? Corpus.Search(), existing ?? new FakeExistingClaims(),
-            new FixedTimeProvider(TestTime.Now), logger ?? NullLogger<AssessmentRunner>.Instance);
+            new FixedTimeProvider(TestTime.Now), logger ?? NullLogger<AssessmentRunner>.Instance, routeFloor);
 
     /// <summary>The pipeline as Docs.Pipeline builds it, with an assessor on the end.</summary>
     public static ClaimIntakePipeline Pipeline(
@@ -88,10 +96,11 @@ internal static class Assessing
         IExistingClaims? existing = null,
         IClaimSink? sink = null,
         ILogger<ClaimIntakePipeline>? logger = null,
-        ILogger<AssessmentRunner>? runnerLogger = null) =>
+        ILogger<AssessmentRunner>? runnerLogger = null,
+        ClaimsIntake.Pipeline.Prompts.IPromptAttackDetector? detector = null) =>
         new(new LocalPdfTextExtractor(), new HeuristicClaimExtractor(), FakePolicyLookup.Seeded(), sink ?? new RecordingSink(),
             new FixedTimeProvider(TestTime.Now), logger ?? new ListLogger<ClaimIntakePipeline>(),
-            Runner(assessor ?? new RuleBasedClaimAssessor(), existing: existing, logger: runnerLogger));
+            Runner(assessor ?? new RuleBasedClaimAssessor(), existing: existing, logger: runnerLogger), detector: detector);
 
     public static AssessmentContext Context(
         string policy = "TM-CP-100001", string lossDate = "2026-11-03", string description = "A water pipe burst in the workshop store room.",
@@ -105,7 +114,8 @@ internal static class Assessing
                 [ClaimFields.EstimatedAmount] = new(ClaimFields.EstimatedAmount, amount, 0.9),
                 [ClaimFields.ClaimantName] = new(ClaimFields.ClaimantName, "Brindle & Marsh Joinery Ltd", 0.9),
             },
-            notifiedOn ?? new DateOnly(2026, 11, 14));
+            notifiedOn ?? new DateOnly(2026, 11, 14),
+            FakePolicyLookup.Seeded().Find(policy));
 }
 
 /// <summary>

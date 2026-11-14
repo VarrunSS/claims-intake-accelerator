@@ -27,16 +27,6 @@ public sealed record IntakeResult(IntakeOutcome Outcome, Claim? Claim = null, IR
 /// </summary>
 public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog audit, ILogger<ClaimIntakeService> logger)
 {
-    public const int MaxFields = 20;
-    public const int MaxIssues = 50;
-    public const int MaxPages = 100;
-    public const int MaxTotalCharacters = 2_000_000;
-    public const int MaxValueLength = 4_000;
-    public const int MaxDocumentIdLength = 300;
-    public const int MaxAuditEntries = 100;
-    public const int MaxFindings = 30;
-    public const int MaxCitationsPerFinding = 10;
-
     public async Task<IntakeResult> AcceptAsync(ProposedClaim proposed, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(proposed);
@@ -47,6 +37,10 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
             return new IntakeResult(IntakeOutcome.Invalid, Problems: problems);
         }
 
+        // Over-long text and trails are cut down with a note and a blocking issue, never refused (REL-04): a claim that
+        // cannot be read by a person is the failure to avoid, not one that was cut to fit.
+        proposed = proposed.WithinLimits();
+
         // The claim id comes from the document id, so a redelivered message finds the claim it created.
         var existing = await repository.GetAsync(proposed.ClaimId, cancellationToken);
         if (existing is not null)
@@ -55,6 +49,16 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
         }
 
         var claim = proposed.ToClaim();
+
+        // The tool calls made while the claim was assessed, written BEFORE the claim (REL-05). Each row has a deterministic
+        // key (its tick and its position in the trail) and is upserted, so if a write fails half way the message is
+        // redelivered and the whole trail is written again with no duplicates and nothing missing. Only then is the claim added.
+        var trail = proposed.AuditTrail ?? [];
+        for (var i = 0; i < trail.Count; i++)
+        {
+            await audit.AppendAsync(trail[i] with { ClaimId = claim.Id, Key = $"t{i:D3}" }, cancellationToken);
+        }
+
         try
         {
             await repository.AddAsync(claim, cancellationToken);
@@ -65,16 +69,11 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
             return Duplicate((await repository.GetAsync(claim.Id, cancellationToken))!);
         }
 
-        // The tool calls made while the claim was assessed. Only a claim that was accepted gets its trail stored, so a
-        // redelivered message does not repeat it. The entries are re-attributed to this claim.
-        foreach (var entry in proposed.AuditTrail ?? [])
-        {
-            await audit.AppendAsync(entry with { ClaimId = claim.Id }, cancellationToken);
-        }
-
         ApiMetrics.IntakeClaims.Add(1, new KeyValuePair<string, object?>("outcome", "accepted"));
-        logger.LogInformation("Claim {ClaimId} accepted from document {DocumentId}: {Errors} errors, {Warnings} warnings",
-            claim.Id, Sanitise(claim.SourceDocumentId),
+
+        // The claim id, never the document id: a blob name can be a person's name (PII-01).
+        logger.LogInformation("Claim {ClaimId} accepted: {Errors} errors, {Warnings} warnings",
+            claim.Id,
             claim.Issues.Count(i => i.Severity == IssueSeverity.Error), claim.Issues.Count(i => i.Severity == IssueSeverity.Warning));
         return new IntakeResult(IntakeOutcome.Accepted, claim);
     }
@@ -102,9 +101,9 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
     {
         var problems = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(proposed.DocumentId) || proposed.DocumentId.Length > MaxDocumentIdLength)
+        if (string.IsNullOrWhiteSpace(proposed.DocumentId) || proposed.DocumentId.Length > IntakeLimits.MaxDocumentIdLength)
         {
-            problems.Add($"documentId is required and must be at most {MaxDocumentIdLength} characters.");
+            problems.Add($"documentId is required and must be at most {IntakeLimits.MaxDocumentIdLength} characters.");
         }
 
         if (proposed.Fields is null || proposed.Issues is null || proposed.SourcePages is null)
@@ -113,41 +112,28 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
             return problems;
         }
 
-        if (proposed.Fields.Count is 0 or > MaxFields
+        if (proposed.Fields.Count is 0 or > IntakeLimits.MaxFields
             || proposed.Fields.Select(f => f.Name).Distinct(StringComparer.Ordinal).Count() != proposed.Fields.Count)
         {
-            problems.Add($"fields must hold between 1 and {MaxFields} entries with distinct names.");
+            problems.Add($"fields must hold between 1 and {IntakeLimits.MaxFields} entries with distinct names.");
         }
 
-        if (proposed.Fields.Any(f => f.Value is { Length: > MaxValueLength }))
+        if (proposed.Fields.Any(f => f.Value is { Length: > IntakeLimits.MaxValueLength }))
         {
-            problems.Add($"a field value is longer than {MaxValueLength} characters.");
+            problems.Add($"a field value is longer than {IntakeLimits.MaxValueLength} characters.");
         }
 
-        if (proposed.Issues.Count > MaxIssues)
+        if (proposed.Issues.Count > IntakeLimits.MaxIssues)
         {
-            problems.Add($"issues must hold at most {MaxIssues} entries.");
-        }
-
-        if (proposed.SourcePages.Count > MaxPages || proposed.SourcePages.Sum(p => (long)p.Length) > MaxTotalCharacters)
-        {
-            problems.Add($"sourcePages must hold at most {MaxPages} pages and {MaxTotalCharacters} characters in all.");
-        }
-
-        if (proposed.AuditTrail is { } trail
-            && (trail.Count > MaxAuditEntries
-                || trail.Any(e => string.IsNullOrWhiteSpace(e.Tool) || e.Tool.Length > 80 || e.ResultSummary is not { Length: <= MaxValueLength }
-                    || e.Arguments is null || e.Arguments.Count > 12 || e.Arguments.Any(a => a.Key.Length > 80 || a.Value is not { Length: <= 300 }))))
-        {
-            problems.Add($"auditTrail must hold at most {MaxAuditEntries} well-formed entries.");
+            problems.Add($"issues must hold at most {IntakeLimits.MaxIssues} entries.");
         }
 
         if (proposed.Assessment is { } assessment
-            && (assessment.Findings is null || assessment.Notes is null || assessment.Findings.Count > MaxFindings
-                || assessment.Findings.Any(f => f.Citations is null || f.Citations.Count > MaxCitationsPerFinding
-                    || f.Summary is not { Length: <= MaxValueLength } || f.Citations.Any(c => c.Text is not { Length: <= MaxValueLength }))))
+            && (assessment.Findings is null || assessment.Notes is null || assessment.Findings.Count > IntakeLimits.MaxFindings
+                || assessment.Findings.Any(f => f.Citations is null || f.Citations.Count > IntakeLimits.MaxCitationsPerFinding
+                    || f.Summary is not { Length: <= IntakeLimits.MaxValueLength } || f.Citations.Any(c => c.Text is not { Length: <= IntakeLimits.MaxValueLength }))))
         {
-            problems.Add($"assessment must hold at most {MaxFindings} well-formed findings.");
+            problems.Add($"assessment must hold at most {IntakeLimits.MaxFindings} well-formed findings.");
         }
 
         return problems;
@@ -157,11 +143,5 @@ public sealed class ClaimIntakeService(IClaimRepository repository, IAuditLog au
     {
         ApiMetrics.IntakeClaims.Add(1, new KeyValuePair<string, object?>("outcome", "duplicate"));
         return new IntakeResult(IntakeOutcome.Duplicate, existing);
-    }
-
-    private static string Sanitise(string value)
-    {
-        var cleaned = new string([.. value.Select(c => char.IsControl(c) ? '_' : c)]);
-        return cleaned.Length <= 200 ? cleaned : cleaned[..200];
     }
 }

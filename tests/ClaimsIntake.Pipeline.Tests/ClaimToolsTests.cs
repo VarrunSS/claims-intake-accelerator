@@ -19,7 +19,7 @@ public class ClaimToolsTests
     [Fact]
     public async Task Lookup_policy_returns_the_period_excess_and_wording_and_records_the_call()
     {
-        var tools = Assessing.Tools();
+        var tools = Assessing.Tools(binding: Assessing.Bound("TM-CP-100006"));
 
         var policy = await tools.LookupPolicyAsync("TM-CP-100006");
 
@@ -34,7 +34,7 @@ public class ClaimToolsTests
     [Fact]
     public async Task Lookup_policy_returns_null_for_an_unknown_policy()
     {
-        var tools = Assessing.Tools();
+        var tools = Assessing.Tools(binding: new ToolBinding("TM-CP-999999", null));
 
         Assert.Null(await tools.LookupPolicyAsync("TM-CP-999999"));
         Assert.Equal("not found", Assert.Single(tools.AuditTrail).ResultSummary);
@@ -49,9 +49,11 @@ public class ClaimToolsTests
         var policies = FakePolicyLookup.Seeded();
         var tools = Assessing.Tools(policies: policies);
 
-        Assert.Null(await tools.LookupPolicyAsync(argument));
+        // Not the claim's policy number, so it is refused (and counted) before anything is sent to the legacy system.
+        await Assert.ThrowsAsync<ToolRefusedException>(() => tools.LookupPolicyAsync(argument));
 
         Assert.Empty(policies.Lookups);
+        Assert.Equal(1, tools.Refusals);
         Assert.StartsWith("[invalid:", Assert.Single(tools.AuditTrail).Arguments["policy_number"]);
         Assert.DoesNotContain("instructions", Assert.Single(tools.AuditTrail).Arguments["policy_number"]);
     }
@@ -75,7 +77,7 @@ public class ClaimToolsTests
     {
         var tools = Assessing.Tools();
 
-        var hits = await tools.SearchPolicyWordingAsync("flood surface water at the Brindle workshop", "TM-PW-CC-2026", 3);
+        var hits = await tools.SearchPolicyWordingAsync("flood surface water at the Brindle workshop", 3);
 
         Assert.Equal(3, hits.Count);
         Assert.Equal("4.1", hits[0].ClauseRef);
@@ -94,13 +96,13 @@ public class ClaimToolsTests
         var search = new CountingSearch(Corpus.Search());
         var tools = Assessing.Tools(search: search);
 
-        await tools.SearchPolicyWordingAsync(new string('x', 5000) + " flood", null, 500);
-        await tools.SearchPolicyWordingAsync("flood", null, -3);
+        await tools.SearchPolicyWordingAsync(new string('x', 5000) + " flood", 500);
+        await tools.SearchPolicyWordingAsync("flood", -3);
 
         Assert.Equal(ClaimTools.MaxResults, search.Calls[0].Top);
         Assert.Equal(ClaimTools.MaxQueryLength, search.Calls[0].Query.Length);
         Assert.Equal(1, search.Calls[1].Top);
-        Assert.Null(search.Calls[0].WordingId);
+        Assert.Equal("TM-PW-CC-2026", search.Calls[0].WordingId);
     }
 
     [Fact]
@@ -116,8 +118,8 @@ public class ClaimToolsTests
     [Fact]
     public async Task Only_clauses_that_a_search_returned_in_this_run_are_remembered()
     {
-        var tools = Assessing.Tools();
-        await tools.SearchPolicyWordingAsync("flood", "TM-PW-OF-2026", 2);
+        var tools = Assessing.Tools(binding: Assessing.Bound("TM-CP-100006"));
+        await tools.SearchPolicyWordingAsync("flood", 2);
 
         Assert.All(tools.ReturnedClauses.Values, c => Assert.Equal("TM-PW-OF-2026", c.WordingId));
         Assert.DoesNotContain("TM-PW-CC-2026/4.1", tools.ReturnedClauses.Keys);
@@ -179,8 +181,7 @@ public class ClaimToolsTests
 
     [Theory]
     [InlineData("TM-CP-100001", "not a date")]
-    [InlineData("not a policy!", "2026-11-03")]
-    public async Task Check_duplicate_refuses_arguments_that_are_not_a_policy_number_and_a_date(string policy, string date)
+    public async Task Check_duplicate_refuses_a_date_that_is_not_a_date(string policy, string date)
     {
         var existing = new FakeExistingClaims();
         var tools = Assessing.Tools(existing: existing);
@@ -226,7 +227,7 @@ public class ClaimToolsTests
         var constructor = Assert.Single(typeof(ClaimTools).GetConstructors());
         var dependencies = constructor.GetParameters().Select(p => p.ParameterType).ToList();
 
-        Assert.Equal([typeof(Guid), typeof(IPolicyLookup), typeof(ClaimsIntake.Pipeline.Policy.IPolicyWordingSearch), typeof(IExistingClaims), typeof(TimeProvider)], dependencies);
+        Assert.Equal([typeof(Guid), typeof(IPolicyLookup), typeof(ClaimsIntake.Pipeline.Policy.IPolicyWordingSearch), typeof(IExistingClaims), typeof(TimeProvider), typeof(ToolBinding)], dependencies);
         Assert.DoesNotContain(typeof(ClaimTools).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic),
             f => f.FieldType.Name.Contains("Sink", StringComparison.Ordinal) || f.FieldType.Name.Contains("Writer", StringComparison.Ordinal) || f.FieldType == typeof(HttpClient));
     }
@@ -248,7 +249,7 @@ public class ClaimToolsTests
         var tools = Assessing.Tools(claimId: claimId);
 
         await tools.LookupPolicyAsync("TM-CP-100001");
-        await tools.SearchPolicyWordingAsync("escape of water", "TM-PW-CC-2026");
+        await tools.SearchPolicyWordingAsync("escape of water");
 
         var entries = tools.AuditTrail;
         Assert.Equal([ToolNames.LookupPolicy, ToolNames.SearchPolicyWording], entries.Select(e => e.Tool));
@@ -273,7 +274,8 @@ public class ClaimToolsTests
         Assert.All(functions, f => Assert.False(string.IsNullOrWhiteSpace(f.Description)));
         Assert.Contains("only records a proposal", functions[3].Description, StringComparison.OrdinalIgnoreCase);
         var search = functions[1].JsonSchema.GetProperty("properties");
-        foreach (var parameter in new[] { "query", "wordingId", "top" })
+        Assert.False(search.TryGetProperty("wordingId", out _), "the model must not be offered a wording id to choose");
+        foreach (var parameter in new[] { "query", "top" })
         {
             Assert.True(search.GetProperty(parameter).TryGetProperty("description", out _), parameter);
         }

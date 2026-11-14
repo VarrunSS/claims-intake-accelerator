@@ -44,15 +44,14 @@ export class ClaimsService {
     return this.http.get<AuditEntry[]>(`${this.base}/${encodeURIComponent(id)}/audit`).pipe(this.mapError());
   }
 
-  approve(id: string, reviewer: string): Observable<ClaimDetail> {
-    return this.http
-      .post<ClaimDetail>(`${this.base}/${encodeURIComponent(id)}/approve`, { reviewer })
-      .pipe(this.mapError());
+  /** The reviewer is taken from the access token by the API, so there is no body. */
+  approve(id: string): Observable<ClaimDetail> {
+    return this.http.post<ClaimDetail>(`${this.base}/${encodeURIComponent(id)}/approve`, null).pipe(this.mapError());
   }
 
-  reject(id: string, reviewer: string, reason: string): Observable<ClaimDetail> {
+  reject(id: string, reason: string): Observable<ClaimDetail> {
     return this.http
-      .post<ClaimDetail>(`${this.base}/${encodeURIComponent(id)}/reject`, { reviewer, reason })
+      .post<ClaimDetail>(`${this.base}/${encodeURIComponent(id)}/reject`, { reason })
       .pipe(this.mapError());
   }
 

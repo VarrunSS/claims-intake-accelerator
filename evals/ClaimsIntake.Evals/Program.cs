@@ -26,6 +26,8 @@ namespace ClaimsIntake.Evals
               --registry <file>          The model registry (default: evals/models.json).
               --parallelism <n>          Claims in flight at once, and the cap on model calls in flight (default: 1 for the
                                          offline baseline, 4 for a model).
+              --route-floor              With --assessor agent: also run the rules check beside the agent and take the more cautious
+                                         route, as production does. Off by default so a comparison measures the model alone.
               --dev-fakes                DEV ONLY. Allows the fake models fake-oracle and fake-noisy, which know the answers.
                                          Their results are a pipeline demonstration, never a model result.
 
@@ -43,10 +45,10 @@ namespace ClaimsIntake.Evals
               --thresholds <file>        The gate for the recommendation (default: evals/model-thresholds.json).
             """;
 
-        private static readonly string[] Flags = ["help", "dev-fakes"];
+        private static readonly string[] Flags = ["help", "dev-fakes", "route-floor"];
 
         private static readonly string[] Known =
-            ["split", "out", "run-id", "thresholds", "dataset", "wordings", "extractor", "assessor", "model", "prompt", "registry", "parallelism", "models", "prompts", "help", "dev-fakes"];
+            ["split", "out", "run-id", "thresholds", "dataset", "wordings", "extractor", "assessor", "model", "prompt", "registry", "parallelism", "models", "prompts", "help", "dev-fakes", "route-floor"];
 
         public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
         {
@@ -137,7 +139,7 @@ namespace ClaimsIntake.Evals
                 throw new ArgumentException("--model and --prompt only apply with --extractor llm or --assessor agent.");
             }
 
-            var config = PipelineConfigs.Create(extractor, assessor, selection, wordings, parallelism: parallelism);
+            var config = PipelineConfigs.Create(extractor, assessor, selection, wordings, parallelism: parallelism) with { RouteFloor = options.ContainsKey("route-floor") };
             var thresholds = options.TryGetValue("thresholds", out var thresholdPath) ? Thresholds.Load(thresholdPath) : null;
 
             var (summary, scores) = await EvaluateAsync(config, cases, allCases, wordings, runId, split, CancellationToken.None);

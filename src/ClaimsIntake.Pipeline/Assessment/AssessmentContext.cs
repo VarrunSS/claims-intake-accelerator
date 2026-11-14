@@ -11,7 +11,10 @@ namespace ClaimsIntake.Pipeline.Assessment;
 /// <param name="ClaimId">The id the claim will have in the review store.</param>
 /// <param name="Fields">The extracted fields, by name.</param>
 /// <param name="NotifiedOn">The date the claim reached the insurer (UK date).</param>
-public sealed record AssessmentContext(Guid ClaimId, IReadOnlyDictionary<string, ExtractedField> Fields, DateOnly NotifiedOn)
+/// <param name="Policy">The policy the pipeline looked up for the claim's policy number, or null when there is none. Its
+/// wording id is what the tools are bound to, so the model cannot search another wording (AI-01).</param>
+public sealed record AssessmentContext(
+    Guid ClaimId, IReadOnlyDictionary<string, ExtractedField> Fields, DateOnly NotifiedOn, PolicyReference? Policy = null)
 {
     public string? PolicyNumber => Value(ClaimFields.PolicyNumber);
 

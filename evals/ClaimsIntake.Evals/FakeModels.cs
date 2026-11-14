@@ -124,7 +124,7 @@ internal sealed class FakeExtractionClient(FakeProfile profile) : FakeClientBase
         var item = FakeModels.RequireCase();
         var list = messages.ToList();
         var input = FakeModels.Tokens(list);
-        var document = list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
+        var document = DecodeDocument(list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? "");
         InjectServiceFaults(item, "extract");
 
         if (Noisy)
@@ -163,6 +163,30 @@ internal sealed class FakeExtractionClient(FakeProfile profile) : FakeClientBase
             [ClaimFields.EstimatedAmount] = Field(amount, document),
         };
         return Task.FromResult(Reply(json.ToJsonString(), input));
+    }
+
+    /// <summary>
+    /// The extraction prompt carries the document as JSON string data (AI-03). An honest model reads the decoded text, so the fake
+    /// does too: the pages are joined with a blank line, as the text the pipeline located the fields in.
+    /// </summary>
+    private static string DecodeDocument(string userMessage)
+    {
+        var start = userMessage.IndexOf('{', StringComparison.Ordinal);
+        var end = userMessage.LastIndexOf('}');
+        if (start < 0 || end < start)
+        {
+            return userMessage;
+        }
+
+        try
+        {
+            using var parsed = System.Text.Json.JsonDocument.Parse(userMessage[start..(end + 1)]);
+            return string.Join("\n", parsed.RootElement.GetProperty("pages").EnumerateArray().Select(p => p.GetProperty("text").GetString() ?? ""));
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            return userMessage;
+        }
     }
 
     // The fake has no reading to do, so its quote is the value if the document has it verbatim, otherwise the first real line of

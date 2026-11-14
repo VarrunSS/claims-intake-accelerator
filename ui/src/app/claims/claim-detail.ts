@@ -1,8 +1,9 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
 import { ClaimsService } from './claims.service';
 import {
   confidenceBand,
@@ -13,26 +14,9 @@ import {
   formatArguments,
   routeLabel,
   segmentPage,
+  toolLabel,
 } from './helpers';
 import { ApiError, AuditEntry, ClaimDetail, ClaimField, CoverageFinding } from './models';
-
-const REVIEWER_KEY = 'claims-review.reviewer';
-
-function readReviewer(): string {
-  try {
-    return localStorage.getItem(REVIEWER_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function saveReviewer(name: string): void {
-  try {
-    localStorage.setItem(REVIEWER_KEY, name);
-  } catch {
-    // Storage can be blocked. The name is then simply not remembered.
-  }
-}
 
 @Component({
   selector: 'app-claim-detail',
@@ -41,7 +25,14 @@ function saveReviewer(name: string): void {
     <p><a routerLink="/claims">&larr; Back to claims</a></p>
 
     @if (loadError(); as e) {
-      <div class="alert" role="alert"><strong>{{ e.title }}.</strong> {{ e.detail }}</div>
+      @if (e.status === 401) {
+        <div class="alert" role="alert">
+          {{ notSignedIn }}
+          <button type="button" (click)="auth.signIn()">Sign in</button>
+        </div>
+      } @else {
+        <div class="alert" role="alert"><strong>{{ e.title }}.</strong> {{ e.detail }}</div>
+      }
     }
 
     @if (claim(); as c) {
@@ -177,7 +168,7 @@ function saveReviewer(name: string): void {
                     <tr [class.failed]="!e.succeeded">
                       <td>{{ e.timestamp | date: 'HH:mm:ss' }}</td>
                       <td>
-                        <code>{{ e.tool }}</code>
+                        <code>{{ toolText(e.tool) }}</code>
                       </td>
                       <td>{{ args(e) }}</td>
                       <td>{{ e.succeeded ? e.resultSummary : 'Failed: ' + e.resultSummary }}</td>
@@ -195,26 +186,18 @@ function saveReviewer(name: string): void {
         <h2 id="decision-heading">Decision</h2>
 
         @if (c.status === 'Rejected') {
-          <p>Rejected by {{ c.decidedBy }}. Reason: {{ c.rejectionReason }}</p>
+          <p>Rejected by {{ c.decidedByName ?? 'unknown' }}. Reason: {{ c.rejectionReason }}</p>
         } @else if (c.status === 'Submitted') {
-          <p>Approved by {{ c.decidedBy }} and written to the claims system as <strong>{{ c.legacyReference }}</strong>.</p>
+          <p>Approved by {{ c.decidedByName ?? 'unknown' }} and written to the claims system as <strong>{{ c.legacyReference }}</strong>.</p>
         } @else {
-          <label for="reviewer">Your name</label>
-          <input
-            id="reviewer"
-            type="text"
-            autocomplete="name"
-            maxlength="200"
-            [ngModel]="reviewer()"
-            (ngModelChange)="setReviewer($event)"
-          />
+          <p class="deciding-as">Deciding as <strong>{{ auth.me()?.name ?? 'unknown user' }}</strong></p>
 
           @if (c.status === 'NeedsReview') {
             <label for="reason">Reason for rejecting (required to reject)</label>
             <textarea id="reason" rows="3" maxlength="500" [(ngModel)]="reason"></textarea>
           } @else {
             <p>
-              Approved by {{ c.decidedBy }}, but the write to the claims system did not complete. Retrying is safe: it
+              Approved by {{ c.decidedByName ?? 'unknown' }}, but the write to the claims system did not complete. Retrying is safe: it
               cannot create a duplicate claim.
             </p>
           }
@@ -239,9 +222,14 @@ function saveReviewer(name: string): void {
         <p class="status" role="status" aria-live="polite">{{ message() }}</p>
         @if (actionError(); as e) {
           <div class="alert" role="alert">
-            <strong>{{ e.title }}.</strong> {{ e.detail }}
-            @for (m of e.errors; track $index) {
-              <div>{{ m }}</div>
+            @if (e.status === 401) {
+              {{ notSignedIn }}
+              <button type="button" (click)="auth.signIn()">Sign in</button>
+            } @else {
+              <strong>{{ e.title }}.</strong> {{ e.detail }}
+              @for (m of e.errors; track $index) {
+                <div>{{ m }}</div>
+              }
             }
           </div>
         }
@@ -251,6 +239,8 @@ function saveReviewer(name: string): void {
 })
 export class ClaimDetailPage {
   private readonly service = inject(ClaimsService);
+  protected readonly auth = inject(AuthService);
+  protected readonly notSignedIn = 'You are not signed in or your session has expired.';
 
   /** Bound from the route parameter. */
   readonly id = input.required<string>();
@@ -263,7 +253,6 @@ export class ClaimDetailPage {
   protected readonly selected = signal<ClaimField | null>(null);
   protected readonly audit = signal<AuditEntry[]>([]);
   protected readonly auditError = signal(false);
-  protected readonly reviewer = signal(readReviewer());
   protected reason = '';
 
   private readonly activeSpans = computed(() => {
@@ -273,6 +262,8 @@ export class ClaimDetailPage {
 
   constructor() {
     effect(() => {
+      // Fetch again when the signed-in identity changes (dev persona switch).
+      this.auth.session();
       this.service.get(this.id()).subscribe({
         next: (c) => {
           this.claim.set(c);
@@ -311,6 +302,10 @@ export class ClaimDetailPage {
     return findingNeedsAttention(f.kind);
   }
 
+  protected toolText(tool: string) {
+    return toolLabel(tool);
+  }
+
   protected args(e: AuditEntry) {
     return formatArguments(e.arguments);
   }
@@ -337,39 +332,32 @@ export class ClaimDetailPage {
     this.selected.set(f);
   }
 
-  protected setReviewer(name: string): void {
-    this.reviewer.set(name);
-    saveReviewer(name);
-  }
-
   /** Why Approve is unavailable, or an empty string when it is available. */
   protected approveBlocker(c: ClaimDetail): string {
     if (c.status !== 'NeedsReview' && c.status !== 'Approved') return 'This claim has already been decided.';
     if (c.issues.some((i) => i.severity === 'Error')) {
       return 'Approval is blocked because the claim has validation errors. Reject it instead.';
     }
-    if (!this.reviewer().trim()) return 'Enter your name to approve or reject.';
+    if (c.assessment?.route === 'SeniorReview' && !this.auth.isSenior()) {
+      return 'This claim is routed to senior review. Only a senior handler can approve it. You can still reject it.';
+    }
     return '';
   }
 
   protected approve(): void {
     const c = this.claim();
     if (!c || this.approveBlocker(c)) return;
-    this.run(this.service.approve(c.id, this.reviewer().trim()), 'Claim approved and written to the claims system.');
+    this.run(this.service.approve(c.id), 'Claim approved and written to the claims system.');
   }
 
   protected reject(): void {
     const c = this.claim();
     if (!c) return;
-    if (!this.reviewer().trim()) {
-      this.actionError.set({ status: 0, title: 'Name needed', detail: 'Enter your name before rejecting.', errors: [] });
-      return;
-    }
     if (!this.reason.trim()) {
       this.actionError.set({ status: 0, title: 'Reason needed', detail: 'Give a reason for rejecting this claim.', errors: [] });
       return;
     }
-    this.run(this.service.reject(c.id, this.reviewer().trim(), this.reason.trim()), 'Claim rejected.');
+    this.run(this.service.reject(c.id, this.reason.trim()), 'Claim rejected.');
   }
 
   private run(call: Observable<ClaimDetail>, success: string): void {

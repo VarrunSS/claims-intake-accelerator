@@ -52,7 +52,7 @@ public class AuditAndAssessmentTests
 
     private static async Task<ClaimSummary> Post(HttpClient client, ProposedClaim claim)
     {
-        var response = await client.PostAsJsonAsync("/intake/claims", claim, ProposedClaim.JsonOptions);
+        var response = await client.PostIntakeAsync(claim);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ClaimSummary>(Json))!;
     }
@@ -113,37 +113,61 @@ public class AuditAndAssessmentTests
         var client = factory.CreateClient();
         var created = await Post(client, Assessed());
 
-        var second = await client.PostAsJsonAsync("/intake/claims", Assessed(), ProposedClaim.JsonOptions);
+        var second = await client.PostIntakeAsync(Assessed());
 
         Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Equal(3, (await client.GetFromJsonAsync<List<AuditEntryDto>>($"/claims/{created.Id}/audit", Json))!.Count);
     }
 
     [Fact]
-    public async Task An_oversized_audit_trail_or_assessment_is_refused_and_nothing_is_stored()
+    public async Task A_150_entry_audit_trail_is_accepted_cut_to_the_limit_with_a_note_and_not_dead_lettered()
+    {
+        // REL-04: a tool-happy model (or an injected document) must not be able to remove a claim from the review queue.
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+        var many = Assessed("inbox/many.pdf", 150);
+
+        var response = await client.PostIntakeAsync(many);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var trail = await client.GetFromJsonAsync<List<AuditEntryDto>>($"/claims/{many.ClaimId}/audit", Json);
+        Assert.Equal(ClaimsIntake.Domain.Intake.IntakeLimits.MaxAuditEntries, trail!.Count);
+        var detail = await client.GetFromJsonAsync<ClaimDetail>($"/claims/{many.ClaimId}", Json);
+        Assert.Contains(detail!.Assessment!.Notes, n => n.Contains("audit trail was cut"));
+    }
+
+    [Fact]
+    public async Task An_over_long_audit_argument_is_cut_not_refused()
     {
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
-        var tooManyCalls = Assessed("inbox/many.pdf", ClaimIntakeService.MaxAuditEntries + 1);
-        var hugeArgument = Assessed("inbox/arg.pdf") with
+        var claim = Assessed("inbox/arg.pdf") with
         {
             AuditTrail = [new AuditEntry(Guid.Empty, "lookup_policy", new Dictionary<string, string> { ["q"] = new string('x', 400) }, "ok", 1, ApiFactory.Now)],
         };
+
+        Assert.Equal(HttpStatusCode.Created, (await client.PostIntakeAsync(claim)).StatusCode);
+
+        var trail = await client.GetFromJsonAsync<List<AuditEntryDto>>($"/claims/{claim.ClaimId}/audit", Json);
+        Assert.Equal(300, Assert.Single(trail!).Arguments["q"].Length);
+    }
+
+    [Fact]
+    public async Task An_assessment_with_too_many_findings_is_still_refused_and_nothing_is_stored()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
         var tooManyFindings = Assessed("inbox/findings.pdf") with
         {
-            Assessment = new ClaimAssessment("agent", [.. Enumerable.Repeat(new CoverageFinding(FindingKind.PossibleExclusion, "x", [Flood]), ClaimIntakeService.MaxFindings + 1)],
+            Assessment = new ClaimAssessment("agent", [.. Enumerable.Repeat(new CoverageFinding(FindingKind.PossibleExclusion, "x", [Flood]), ClaimsIntake.Domain.Intake.IntakeLimits.MaxFindings + 1)],
                 ReviewRoute.SeniorReview, "x", []),
         };
 
-        foreach (var claim in new[] { tooManyCalls, hugeArgument, tooManyFindings })
-        {
-            var response = await client.PostAsJsonAsync("/intake/claims", claim, ProposedClaim.JsonOptions);
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/claims/{claim.ClaimId}")).StatusCode);
-        }
-    }
+        var response = await client.PostIntakeAsync(tooManyFindings);
 
-    // ----- the assessment on the claim detail -----
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/claims/{tooManyFindings.ClaimId}")).StatusCode);
+    }
 
     [Fact]
     public async Task The_claim_detail_carries_the_findings_with_their_cited_clause_text_and_the_route()
@@ -169,7 +193,7 @@ public class AuditAndAssessmentTests
         var plain = await client.GetFromJsonAsync<ClaimDetail>($"/claims/{factory.Clean.Id}", Json);
         var created = await Post(client, Assessed());
 
-        await client.PostAsJsonAsync($"/claims/{created.Id}/reject", new RejectRequest("a.patel", "Flood is excluded."));
+        await client.PostAsJsonAsync($"/claims/{created.Id}/reject", new RejectRequest("Flood is excluded."));
         var after = await client.GetFromJsonAsync<ClaimDetail>($"/claims/{created.Id}", Json);
 
         Assert.Null(plain!.Assessment);
@@ -183,7 +207,7 @@ public class AuditAndAssessmentTests
     public async Task History_lists_the_claims_on_a_policy_with_ids_dates_and_amounts_but_no_names_or_text()
     {
         using var factory = new ApiFactory();
-        var client = factory.CreateClient();
+        var client = factory.CreateClient().WithBearer(TestAuth.Pipeline());
 
         var response = await client.GetAsync("/claims/history?policyNumber=tm-cp-100001");
 
@@ -205,7 +229,7 @@ public class AuditAndAssessmentTests
     {
         using var factory = new ApiFactory();
 
-        var response = await factory.CreateClient().GetAsync($"/claims/history{query}");
+        var response = await factory.CreateClient().WithBearer(TestAuth.Pipeline()).GetAsync($"/claims/history{query}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -215,7 +239,7 @@ public class AuditAndAssessmentTests
     {
         using var factory = new ApiFactory();
 
-        var items = await factory.CreateClient().GetFromJsonAsync<List<ClaimHistoryItem>>("/claims/history?policyNumber=TM-CP-100002", Json);
+        var items = await factory.CreateClient().WithBearer(TestAuth.Pipeline()).GetFromJsonAsync<List<ClaimHistoryItem>>("/claims/history?policyNumber=TM-CP-100002", Json);
 
         Assert.Empty(items!);
     }
@@ -233,11 +257,23 @@ public class AuditAndAssessmentTests
             return Task.CompletedTask;
         }
 
-        public Task AddAsync(TableEntity entity, CancellationToken cancellationToken)
+        /// <summary>Upsert: a row with the same keys is replaced, as Table Storage does.</summary>
+        public Task UpsertAsync(TableEntity entity, CancellationToken cancellationToken)
         {
+            if (FailOnUpsert == ++UpsertCalls)
+            {
+                throw new InvalidOperationException("Table storage is throttling.");
+            }
+
+            Rows.RemoveAll(r => r.PartitionKey == entity.PartitionKey && r.RowKey == entity.RowKey);
             Rows.Add(entity);
             return Task.CompletedTask;
         }
+
+        public int UpsertCalls { get; private set; }
+
+        /// <summary>The 1-based number of the upsert call that throws once, or 0 for none.</summary>
+        public int FailOnUpsert { get; set; }
 
         public Task<IReadOnlyList<TableEntity>> QueryPartitionAsync(string partitionKey, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TableEntity>>([.. Rows.Where(r => r.PartitionKey == partitionKey).OrderBy(r => r.RowKey, StringComparer.Ordinal)]);

@@ -67,19 +67,30 @@ public sealed class FoundryLlmClaimExtractor(IChatClient chatClient, PromptVersi
 
     internal static string BuildUserMessage(DocumentText text)
     {
-        var builder = new StringBuilder("<document>\n");
+        // The document is untrusted. Each page is a JSON string, so the text cannot contain a closing </document> tag (AI-03).
+        // The cut is made on the text before it is encoded, so the JSON stays valid.
+        var pages = new List<Dictionary<string, object>>();
+        var remaining = MaxDocumentCharacters;
+        var cut = false;
         for (var i = 0; i < text.Pages.Count; i++)
         {
-            builder.Append("[page ").Append(i + 1).Append("]\n").Append(text.Pages[i]).Append('\n');
+            var page = text.Pages[i];
+            if (page.Length > remaining)
+            {
+                page = page[..Math.Max(remaining, 0)];
+                cut = true;
+            }
+
+            remaining -= page.Length;
+            pages.Add(new Dictionary<string, object> { ["page"] = i + 1, ["text"] = page });
+            if (cut)
+            {
+                break;
+            }
         }
 
-        if (builder.Length > MaxDocumentCharacters)
-        {
-            builder.Length = MaxDocumentCharacters;
-            builder.Append("\n[text cut here]\n");
-        }
-
-        return builder.Append("</document>").ToString();
+        var body = UntrustedText.Encode(new Dictionary<string, object> { ["pages"] = pages, ["text_cut"] = cut });
+        return $"<document>\n{body}\n</document>";
     }
 
     internal static IReadOnlyList<ExtractedField> Parse(string documentId, DocumentText text, string? json)

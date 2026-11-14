@@ -104,7 +104,7 @@ public sealed class DuplicateFileCheck(IDocumentHashStore store) : IInputQuality
         QualityFinding? finding = earlier is null
             ? null
             : new(IssueCode.DuplicateDocument, Name,
-                $"This file is identical to one already received ({ClaimIntakePipeline.Sanitise(earlier)}).");
+                $"This file is identical to one already received (claim {ClaimsIntake.Domain.Intake.ClaimIds.ForDocument(earlier):D}).");
         return Task.FromResult(finding);
     }
 }

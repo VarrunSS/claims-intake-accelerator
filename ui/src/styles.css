@@ -87,3 +87,8 @@ details.audit { margin-top: 12px; }
 details.audit summary { cursor: pointer; font-weight: 600; }
 table.audit-table { font-size: 0.9rem; margin-top: 8px; }
 table.audit-table tr.failed td { color: var(--bad-fg); }
+
+.app-header .spacer { flex: 1; }
+.app-header .who { color: #fff; }
+.dev-banner { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 4px 10px; background: #fff3cd; color: #5c4400; border: 1px solid #d4a72c; border-radius: 4px; }
+.dev-banner label { margin: 0; }
